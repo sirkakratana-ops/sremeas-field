@@ -35,6 +35,7 @@ export default function NewVisitModal({
   const [newCustGender, setNewCustGender] = useState('ប្រុស');
   const [newCustType, setNewCustType] = useState('កសិករ');
   const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustBranches, setNewCustBranches] = useState(() => [currentUser?.branch || 'ការិយាល័យកណ្តាល']);
   const [newCustVillage, setNewCustVillage] = useState('');
   const [newCustCommune, setNewCustCommune] = useState('');
   const [newCustDistrict, setNewCustDistrict] = useState('');
@@ -242,12 +243,15 @@ export default function NewVisitModal({
     if (!newCustName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
 
     const primaryCropString = newCustCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+    const primaryBranchString = newCustBranches.join(', ') || null;
 
     const payload = {
       name: newCustName.trim(),
       gender: newCustGender || 'ប្រុស',
       customer_type: newCustType || 'កសិករ',
       phone: newCustPhone.trim() || null,
+      branches: newCustBranches,
+      branch: primaryBranchString,
       village: newCustVillage.trim() || null,
       commune: newCustCommune.trim() || null,
       district: newCustDistrict.trim() || null,
@@ -259,10 +263,15 @@ export default function NewVisitModal({
     };
 
     try {
-      const { data, error } = await supabase.from('customers').insert([payload]).select().single();
       let createdCustomer = null;
-      if (error) {
-        if (error.message.includes('column') || error.code === 'PGRST204') {
+      let { data, error } = await supabase.from('customers').insert([payload]).select().single();
+      
+      if (error && (error.message.includes('column') || error.code === 'PGRST204' || error.code === '42703')) {
+        const { branches: _br, branch: _b, ...payloadNoBranch } = payload;
+        const res2 = await supabase.from('customers').insert([payloadNoBranch]).select().single();
+        if (!res2.error) {
+          createdCustomer = { ...res2.data, ...payload };
+        } else {
           const fallbackPayload = {
             name: newCustName.trim(),
             phone: newCustPhone.trim() || null,
@@ -273,9 +282,9 @@ export default function NewVisitModal({
           const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
           if (fbErr) throw fbErr;
           createdCustomer = { ...fbData, ...payload };
-        } else {
-          throw error;
         }
+      } else if (error) {
+        throw error;
       } else {
         createdCustomer = data;
       }
@@ -633,6 +642,41 @@ export default function NewVisitModal({
                     onChange={e => setNewCustPhone(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
                   />
+                </div>
+
+                {/* Branch selector for new customer */}
+                <div className="p-2 bg-slate-100/80 rounded-lg space-y-1 text-xs">
+                  <label className="font-bold text-slate-700 flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1">
+                      <Building size={12} className="text-emerald-600" />
+                      <span>សាខាអតិថិជន (អាចជ្រើសបានច្រើន)</span>
+                    </span>
+                    {newCustBranches.length > 0 && (
+                      <span className="text-[10px] text-emerald-800 font-bold bg-white px-1.5 py-0.2 rounded border border-emerald-200">
+                        {newCustBranches.length} សាខា
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex flex-wrap gap-1">
+                    {branchOptions.map((b, idx) => {
+                      const isSel = newCustBranches.includes(b);
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setNewCustBranches(prev => 
+                            prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]
+                          )}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all flex items-center gap-1 ${
+                            isSel ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {isSel ? <Check size={10} /> : <Plus size={10} />}
+                          <span>{b}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Crops for new customer */}

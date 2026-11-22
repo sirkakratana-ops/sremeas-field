@@ -3,10 +3,11 @@ import { supabase } from '../supabase';
 import { 
   User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, 
   Table as TableIcon, LayoutGrid, X, CheckCircle2, ClipboardList,
-  Navigation, Loader2, ExternalLink, Store, UserCheck, ChevronDown, ChevronUp
+  Navigation, Loader2, ExternalLink, Store, UserCheck, ChevronDown, ChevronUp,
+  Building, Check
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops } from '../staffUtils';
+import { parseCrops, parseBranches, BRANCH_SUGGESTIONS } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -21,6 +22,7 @@ export default function CustomerList({
   const [filterType, setFilterType] = useState('All');
   const [filterGender, setFilterGender] = useState('All');
   const [filterCrop, setFilterCrop] = useState('All');
+  const [filterBranch, setFilterBranch] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
   
   // Modals state
@@ -33,6 +35,8 @@ export default function CustomerList({
   const [formType, setFormType] = useState('កសិករ');
   const [formCustomType, setFormCustomType] = useState('');
   const [formPhone, setFormPhone] = useState('');
+  const [formBranches, setFormBranches] = useState([]);
+  const [customBranchInput, setCustomBranchInput] = useState('');
   const [formVillage, setFormVillage] = useState('');
   const [formCommune, setFormCommune] = useState('');
   const [formDistrict, setFormDistrict] = useState('');
@@ -56,9 +60,17 @@ export default function CustomerList({
     }).filter(Boolean)
   ))];
 
+  // Collect all unique branches across customers for filtering
+  const allCustomerBranches = ['All', ...Array.from(new Set(
+    customers.flatMap(c => parseBranches(c.branches, c.branch)).filter(Boolean)
+  ))];
+
   const filtered = customers.filter(c => {
     const s = searchTerm.toLowerCase();
     const crops = parseCrops(c.crops, c.primary_crop);
+    const branches = parseBranches(c.branches, c.branch);
+    const branchesStr = branches.join(' ').toLowerCase();
+
     const cropsMatchSearch = crops.some(cr => 
       (cr.crop_type || '').toLowerCase().includes(s) ||
       (cr.variety || '').toLowerCase().includes(s)
@@ -72,13 +84,15 @@ export default function CustomerList({
       (c.district || '').toLowerCase().includes(s) ||
       (c.province || '').toLowerCase().includes(s) ||
       (c.customer_type || '').toLowerCase().includes(s) ||
+      branchesStr.includes(s) ||
       cropsMatchSearch;
 
     const matchType = filterType === 'All' || (c.customer_type || 'កសិករ') === filterType;
     const matchGender = filterGender === 'All' || (c.gender || '—') === filterGender;
     const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop);
+    const matchBranch = filterBranch === 'All' || branches.includes(filterBranch);
 
-    return matchSearch && matchType && matchGender && matchCrop;
+    return matchSearch && matchType && matchGender && matchCrop && matchBranch;
   });
 
   const handleOpenAdd = () => {
@@ -88,6 +102,8 @@ export default function CustomerList({
     setFormType('កសិករ');
     setFormCustomType('');
     setFormPhone('');
+    setFormBranches(currentUser?.branch ? [currentUser.branch] : ['ការិយាល័យកណ្តាល']);
+    setCustomBranchInput('');
     setFormVillage('');
     setFormCommune('');
     setFormDistrict('');
@@ -115,6 +131,9 @@ export default function CustomerList({
     }
 
     setFormPhone(cust.phone || '');
+    const custBranches = parseBranches(cust.branches, cust.branch);
+    setFormBranches(custBranches.length > 0 ? custBranches : (currentUser?.branch ? [currentUser.branch] : []));
+    setCustomBranchInput('');
     setFormVillage(cust.village || '');
     setFormCommune(cust.commune || '');
     setFormDistrict(cust.district || '');
@@ -128,6 +147,26 @@ export default function CustomerList({
     ]);
 
     setIsAddModalOpen(true);
+  };
+
+  const handleToggleBranch = (b) => {
+    if (!b) return;
+    setFormBranches(prev => 
+      prev.includes(b) ? prev.filter(item => item !== b) : [...prev, b]
+    );
+  };
+
+  const handleRemoveBranch = (b) => {
+    setFormBranches(prev => prev.filter(item => item !== b));
+  };
+
+  const handleAddCustomBranch = () => {
+    const val = customBranchInput.trim();
+    if (!val) return;
+    if (!formBranches.includes(val)) {
+      setFormBranches(prev => [...prev, val]);
+    }
+    setCustomBranchInput('');
   };
 
   const handleGetGPS = () => {
@@ -160,6 +199,7 @@ export default function CustomerList({
       : formType;
 
     const primaryCropString = formCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+    const branchString = formBranches.join(', ') || null;
 
     const payload = {
       name: formName.trim(),
@@ -168,6 +208,8 @@ export default function CustomerList({
       phone: formPhone.trim() || null,
       primary_crop: primaryCropString,
       crops: formCrops,
+      branches: formBranches,
+      branch: branchString,
       village: formVillage.trim() || null,
       commune: formCommune.trim() || null,
       district: formDistrict.trim() || null,
@@ -178,11 +220,14 @@ export default function CustomerList({
 
     try {
       if (editingCustomer) {
-        // Try updating
-        const { data, error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id).select().single();
-        if (error) {
-          // Fallback if 'crops' column not yet migrated
-          if (error.message.includes('column') || error.code === 'PGRST204') {
+        let { data, error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id).select().single();
+        if (error && (error.message.includes('column') || error.code === 'PGRST204' || error.code === '42703')) {
+          const { branches: _br, branch: _b, ...payloadNoBranch } = payload;
+          const res2 = await supabase.from('customers').update(payloadNoBranch).eq('id', editingCustomer.id).select().single();
+          if (!res2.error) {
+            data = { ...res2.data, ...payload };
+            error = null;
+          } else {
             const fallbackPayload = {
               name: formName.trim(),
               phone: formPhone.trim() || null,
@@ -190,22 +235,24 @@ export default function CustomerList({
               village: formVillage.trim() || null,
               province: formProvince.trim() || null
             };
-            const { data: fbData, error: fbErr } = await supabase.from('customers').update(fallbackPayload).eq('id', editingCustomer.id).select().single();
-            if (fbErr) throw fbErr;
-            alert("បានកែប្រែព័ត៌មានអតិថិជន! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីរក្សាទុកដំណាំច្រើនប្រភេទក្នុង Database)");
-            if (onCustomerUpdated) onCustomerUpdated({ ...fbData, ...payload });
-          } else {
-            throw error;
+            const res3 = await supabase.from('customers').update(fallbackPayload).eq('id', editingCustomer.id).select().single();
+            if (res3.error) throw res3.error;
+            data = { ...res3.data, ...payload };
+            error = null;
           }
-        } else {
-          alert("កែប្រែព័ត៌មានអតិថិជនជោគជ័យ!");
-          if (onCustomerUpdated) onCustomerUpdated(data);
         }
+        if (error) throw error;
+        alert("កែប្រែព័ត៌មានអតិថិជនជោគជ័យ!");
+        if (onCustomerUpdated) onCustomerUpdated(data);
       } else {
-        // Insert new customer
-        const { data, error } = await supabase.from('customers').insert([payload]).select().single();
-        if (error) {
-          if (error.message.includes('column') || error.code === 'PGRST204') {
+        let { data, error } = await supabase.from('customers').insert([payload]).select().single();
+        if (error && (error.message.includes('column') || error.code === 'PGRST204' || error.code === '42703')) {
+          const { branches: _br, branch: _b, ...payloadNoBranch } = payload;
+          const res2 = await supabase.from('customers').insert([payloadNoBranch]).select().single();
+          if (!res2.error) {
+            data = { ...res2.data, ...payload };
+            error = null;
+          } else {
             const fallbackPayload = {
               name: formName.trim(),
               phone: formPhone.trim() || null,
@@ -213,17 +260,15 @@ export default function CustomerList({
               village: formVillage.trim() || null,
               province: formProvince.trim() || null
             };
-            const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
-            if (fbErr) throw fbErr;
-            alert("បានបន្ថែមអតិថិជនថ្មីជោគជ័យ! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីរក្សាទុកដំណាំច្រើនប្រភេទក្នុង Database)");
-            if (onCustomerCreated) onCustomerCreated({ ...fbData, ...payload });
-          } else {
-            throw error;
+            const res3 = await supabase.from('customers').insert([fallbackPayload]).select().single();
+            if (res3.error) throw res3.error;
+            data = { ...res3.data, ...payload };
+            error = null;
           }
-        } else {
-          alert("បានបន្ថែមអតិថិជនថ្មីជោគជ័យ!");
-          if (onCustomerCreated) onCustomerCreated(data);
         }
+        if (error) throw error;
+        alert("បានបន្ថែមអតិថិជនថ្មីជោគជ័យ!");
+        if (onCustomerCreated) onCustomerCreated(data);
       }
 
       setIsAddModalOpen(false);
@@ -289,6 +334,17 @@ export default function CustomerList({
               <option value="All">គ្រប់ភេទ</option>
               <option value="ប្រុស">ប្រុស</option>
               <option value="ស្រី">ស្រី</option>
+            </select>
+
+            <select 
+              value={filterBranch} 
+              onChange={e => setFilterBranch(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-bold"
+            >
+              <option value="All">គ្រប់សាខា</option>
+              {Array.from(new Set([...BRANCH_SUGGESTIONS, ...allCustomerBranches.filter(b => b !== 'All')])).map((b, i) => (
+                <option key={i} value={b}>សាខា {b}</option>
+              ))}
             </select>
 
             {allCropTypes.length > 2 && (
@@ -361,6 +417,7 @@ export default function CustomerList({
               <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
                 <tr>
                   <th className="py-3 px-3.5 whitespace-nowrap">ឈ្មោះអតិថិជន / ភេទ</th>
+                  <th className="py-3 px-3 whitespace-nowrap">សាខា</th>
                   <th className="py-3 px-3 whitespace-nowrap">ប្រភេទ</th>
                   <th className="py-3 px-3 whitespace-nowrap">លេខទូរស័ព្ទ</th>
                   <th className="py-3 px-3 whitespace-nowrap">ដំណាំក្នុងចំការ (ពូជ, ផ្ទៃដី, ចំនួនដើម, អាយុ)</th>
@@ -374,6 +431,7 @@ export default function CustomerList({
                   const hasGPS = cust.latitude && cust.longitude;
                   const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
                   const crops = parseCrops(cust.crops, cust.primary_crop);
+                  const branches = parseBranches(cust.branches, cust.branch);
 
                   return (
                     <tr key={cust.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -395,6 +453,25 @@ export default function CustomerList({
                             </span>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Branch(es) */}
+                      <td className="py-2.5 px-3 min-w-[130px]">
+                        {branches.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {branches.map((b, idx) => (
+                              <span 
+                                key={idx} 
+                                className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 border border-slate-200 px-1.5 py-0.2 rounded text-[10px] font-bold"
+                              >
+                                <Building size={10} className="text-slate-500 shrink-0" />
+                                <span>{b}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">—</span>
+                        )}
                       </td>
 
                       {/* Customer Type */}
@@ -540,6 +617,7 @@ export default function CustomerList({
             const hasGPS = cust.latitude && cust.longitude;
             const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
             const crops = parseCrops(cust.crops, cust.primary_crop);
+            const branches = parseBranches(cust.branches, cust.branch);
 
             return (
               <div key={cust.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between">
@@ -589,6 +667,21 @@ export default function CustomerList({
                       )}
                     </div>
                   </div>
+
+                  {/* Customer Branches */}
+                  {branches.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 my-1.5">
+                      <span className="text-[10px] text-slate-400 font-bold flex items-center gap-0.5">
+                        <Building size={10} />
+                        <span>សាខា៖</span>
+                      </span>
+                      {branches.map((b, idx) => (
+                        <span key={idx} className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded text-[10px] font-bold border border-slate-200">
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Multi-Crops Badge Box */}
                   {crops.length > 0 && (
@@ -752,6 +845,94 @@ export default function CustomerList({
                   />
                 </div>
               )}
+
+              {/* ===================== BRANCH SELECTOR (សាខាដែលគ្រប់គ្រង) ===================== */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="font-bold text-slate-700 block flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Building size={14} className="text-emerald-600" />
+                    <span>សាខាដែលគ្រប់គ្រង (អាចជ្រើសបានច្រើន ឬរួមគ្នារវាងសាខា) *</span>
+                  </span>
+                  {formBranches.length > 0 && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-full font-bold">
+                      {formBranches.length} សាខា
+                    </span>
+                  )}
+                </label>
+
+                {/* Selected branches badges */}
+                {formBranches.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formBranches.map((b, idx) => (
+                      <span 
+                        key={idx}
+                        className="bg-white text-slate-800 border border-slate-200 px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                      >
+                        <Building size={11} className="text-emerald-600" />
+                        <span>{b}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveBranch(b)}
+                          className="hover:text-rose-600 p-0.5 ml-0.5"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                    សូមជ្រើសរើសសាខាយ៉ាងហោចណាស់មួយ ឬជ្រើសរើសរួមគ្នារវាងសាខាច្រើន
+                  </p>
+                )}
+
+                {/* Quick-pick Branch Suggestions */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/80">
+                  <span className="text-[10px] text-slate-400 font-bold">ជ្រើសរើសរហ័ស៖</span>
+                  {Array.from(new Set([...BRANCH_SUGGESTIONS, ...allCustomerBranches.filter(b => b !== 'All')])).map((b, idx) => {
+                    const isSelected = formBranches.includes(b);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleToggleBranch(b)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition-all flex items-center gap-1 ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {isSelected ? <Check size={10} /> : <Plus size={10} />}
+                        <span>{b}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom branch input */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <input
+                    type="text"
+                    placeholder="+ បញ្ចូលឈ្មោះសាខាផ្សេងទៀត..."
+                    value={customBranchInput}
+                    onChange={e => setCustomBranchInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomBranch();
+                      }
+                    }}
+                    className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomBranch}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold shadow-2xs"
+                  >
+                    បន្ថែម
+                  </button>
+                </div>
+              </div>
 
               {/* ===================== CROPS EDITOR (ដំណាំច្រើនប្រភេទក្នុងចំការ) ===================== */}
               <CropsEditor 

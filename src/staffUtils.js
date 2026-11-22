@@ -41,7 +41,9 @@ alter table if exists customers
   add column if not exists district text,
   add column if not exists latitude double precision,
   add column if not exists longitude double precision,
-  add column if not exists crops jsonb default '[]'::jsonb;
+  add column if not exists crops jsonb default '[]'::jsonb,
+  add column if not exists branches jsonb default '[]'::jsonb,
+  add column if not exists branch text;
 
 -- ==========================================================
 -- 2. បន្ថែមជួរឈរ crops, branch, team_members ក្នុងតារាង field_visits
@@ -180,6 +182,28 @@ export function parseCrops(cropsData, fallbackCrop = '', fallbackSize = null) {
       plant_count: null,
       crop_age: ''
     }];
+  }
+  return [];
+}
+
+/**
+ * Normalize and parse customer branches list from DB or JSON
+ */
+export function parseBranches(branchesData, fallbackBranch = '') {
+  if (Array.isArray(branchesData) && branchesData.length > 0) {
+    return branchesData.filter(Boolean);
+  }
+  if (typeof branchesData === 'string' && branchesData.trim()) {
+    try {
+      const parsed = JSON.parse(branchesData);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter(Boolean);
+    } catch {}
+    return branchesData.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (fallbackBranch) {
+    if (typeof fallbackBranch === 'string') {
+      return fallbackBranch.split(',').map(s => s.trim()).filter(Boolean);
+    }
   }
   return [];
 }

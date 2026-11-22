@@ -5,7 +5,7 @@ import {
   MapPinOff, Building, Tag, Loader2
 } from 'lucide-react';
 import { supabase } from '../supabase';
-import { parseCrops } from '../staffUtils';
+import { parseCrops, parseBranches } from '../staffUtils';
 
 export default function CustomerSelectSearch({
   customers = [],
@@ -55,13 +55,17 @@ export default function CustomerSelectSearch({
       const district = (c.district || '').toLowerCase();
       const province = (c.province || '').toLowerCase();
       const crop = (c.primary_crop || '').toLowerCase();
+      const branches = parseBranches(c.branches, c.branch);
+      const branchesStr = branches.join(' ').toLowerCase();
+
       return name.includes(q) || 
              phone.includes(q) || 
              village.includes(q) || 
              commune.includes(q) || 
              district.includes(q) || 
              province.includes(q) || 
-             crop.includes(q);
+             crop.includes(q) ||
+             branchesStr.includes(q);
     });
   }, [customers, searchTerm]);
 
@@ -140,13 +144,23 @@ export default function CustomerSelectSearch({
                   </span>
                 )}
 
-                <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold border ${
-                  selectedCustomer.customer_type === 'ដេប៉ូ' 
-                    ? 'bg-amber-100 text-amber-800 border-amber-200' 
-                    : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                }`}>
-                  {selectedCustomer.customer_type || 'កសិករ'}
-                </span>
+                {selectedCustomer.customer_type && (
+                  <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold border ${
+                    selectedCustomer.customer_type === 'ដេប៉ូ' 
+                      ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  }`}>
+                    {selectedCustomer.customer_type}
+                  </span>
+                )}
+
+                {/* Branches */}
+                {parseBranches(selectedCustomer.branches, selectedCustomer.branch).map((b, idx) => (
+                  <span key={idx} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold border border-slate-200 flex items-center gap-0.5">
+                    <Building size={9} className="text-slate-500" />
+                    <span>{b}</span>
+                  </span>
+                ))}
               </div>
 
               {selectedCustomer.phone && (
@@ -295,6 +309,7 @@ export default function CustomerSelectSearch({
                   displayList.map(cust => {
                     const isSelected = cust.id === selectedCustomerId;
                     const crops = parseCrops(cust.crops, cust.primary_crop);
+                    const branches = parseBranches(cust.branches, cust.branch);
                     const addr = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
 
                     return (
@@ -320,6 +335,12 @@ export default function CustomerSelectSearch({
                             }`}>
                               {cust.customer_type || 'កសិករ'}
                             </span>
+                            {branches.map((b, idx) => (
+                              <span key={idx} className="text-[9px] bg-slate-100 text-slate-700 px-1 py-0.1 rounded font-bold border border-slate-200 flex items-center gap-0.5">
+                                <Building size={8} className="text-slate-500" />
+                                <span>{b}</span>
+                              </span>
+                            ))}
                             {cust.phone && (
                               <span className="font-mono text-[10px] text-slate-500">
                                 {cust.phone}
