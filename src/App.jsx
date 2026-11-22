@@ -294,6 +294,7 @@ export default function App() {
                 onCustomerUpdated={handleCustomerUpdated}
                 onCustomerDeleted={handleCustomerDeleted}
                 currentUser={currentUser}
+                staffList={staffList}
               />
             )}
 

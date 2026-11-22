@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
-import { parseCrops, BRANCH_SUGGESTIONS, getStaffList } from '../staffUtils';
+import { parseCrops, getStaffBranches, getStaffList } from '../staffUtils';
 
 export default function NewVisitModal({ 
   isOpen, 
@@ -407,11 +407,8 @@ export default function NewVisitModal({
   // Filter available colleagues from staff members (exclude primary staff name)
   const availableColleagues = staffMembers.filter(s => s.name !== staffName);
 
-  // Distinct branches list
-  const branchOptions = Array.from(new Set([
-    ...BRANCH_SUGGESTIONS,
-    ...staffMembers.map(s => s.branch).filter(Boolean)
-  ]));
+  // Distinct branches list STRICTLY from staff table
+  const branchOptions = getStaffBranches(staffMembers);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">

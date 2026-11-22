@@ -15,21 +15,18 @@ export const VARIETY_SUGGESTIONS = {
   'ម្រេច': ['ម្រេចកំពត', 'ម្រេចពូជខ្មែរ']
 };
 
-export const BRANCH_SUGGESTIONS = [
-  'ការិយាល័យកណ្តាល',
-  'កំពង់ចាម',
-  'ត្បូងឃ្មុំ',
-  'បាត់ដំបង',
-  'សៀមរាប',
-  'កំពង់ធំ',
-  'ពោធិ៍សាត់',
-  'បន្ទាយមានជ័យ',
-  'ក្រចេះ',
-  'ព្រៃវែង',
-  'តាកែវ',
-  'កំពត',
-  'កណ្តាល'
-];
+/**
+ * Extract distinct branch names strictly from staff table
+ */
+export function getStaffBranches(staffList = []) {
+  if (!Array.isArray(staffList)) return ['ការិយាល័យកណ្តាល'];
+  const branches = Array.from(new Set(
+    staffList.map(s => (s?.branch || '').trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+  return branches.length > 0 ? branches : ['ការិយាល័យកណ្តាល'];
+}
+
+export const BRANCH_SUGGESTIONS = [];
 
 export const SQL_SCHEMA_SCRIPT = `-- ==========================================================
 -- 1. បន្ថែមជួរឈរ (Columns) ក្នុងតារាង customers

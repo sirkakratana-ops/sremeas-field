@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase';
 import { 
   User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, 
@@ -7,7 +7,7 @@ import {
   Building, Check
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, BRANCH_SUGGESTIONS } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -16,8 +16,24 @@ export default function CustomerList({
   onCustomerCreated,
   onCustomerUpdated, 
   onCustomerDeleted,
-  currentUser
+  currentUser,
+  staffList: propStaffList = []
 }) {
+  const [internalStaff, setInternalStaff] = useState(propStaffList);
+
+  useEffect(() => {
+    if (propStaffList && propStaffList.length > 0) {
+      setInternalStaff(propStaffList);
+    } else {
+      getStaffList(supabase).then(list => setInternalStaff(list || []));
+    }
+  }, [propStaffList]);
+
+  // Distinct branches strictly from staff table
+  const staffBranches = useMemo(() => {
+    return getStaffBranches(internalStaff.length > 0 ? internalStaff : propStaffList);
+  }, [internalStaff, propStaffList]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterGender, setFilterGender] = useState('All');
@@ -342,7 +358,7 @@ export default function CustomerList({
               className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-bold"
             >
               <option value="All">គ្រប់សាខា</option>
-              {Array.from(new Set([...BRANCH_SUGGESTIONS, ...allCustomerBranches.filter(b => b !== 'All')])).map((b, i) => (
+              {staffBranches.map((b, i) => (
                 <option key={i} value={b}>សាខា {b}</option>
               ))}
             </select>
@@ -888,8 +904,8 @@ export default function CustomerList({
 
                 {/* Quick-pick Branch Suggestions */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/80">
-                  <span className="text-[10px] text-slate-400 font-bold">ជ្រើសរើសរហ័ស៖</span>
-                  {Array.from(new Set([...BRANCH_SUGGESTIONS, ...allCustomerBranches.filter(b => b !== 'All')])).map((b, idx) => {
+                  <span className="text-[10px] text-slate-400 font-bold">ជ្រើសរើសរហ័ស (ពីតារាងបុគ្គលិក)៖</span>
+                  {staffBranches.map((b, idx) => {
                     const isSelected = formBranches.includes(b);
                     return (
                       <button
