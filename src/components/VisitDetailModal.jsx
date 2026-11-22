@@ -1,5 +1,9 @@
 import React from 'react';
-import { X, MapPin, Calendar, User, Sprout, AlertTriangle, PackageCheck, FileText, Phone, ExternalLink, Image } from 'lucide-react';
+import { 
+  X, MapPin, Calendar, User, Sprout, AlertTriangle, 
+  PackageCheck, FileText, Phone, ExternalLink, Image,
+  Building, Users, UserCheck
+} from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 
 export default function VisitDetailModal({ visit, onClose }) {
@@ -8,6 +12,20 @@ export default function VisitDetailModal({ visit, onClose }) {
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
   const totalHa = crops.reduce((s, c) => s + (parseFloat(c.farm_size_ha) || 0), 0) || visit.farm_size_ha || 0;
   const totalPlants = crops.reduce((s, c) => s + (parseInt(c.plant_count, 10) || 0), 0);
+
+  // Parse team members
+  let teamMembers = [];
+  if (Array.isArray(visit.team_members)) {
+    teamMembers = visit.team_members;
+  } else if (typeof visit.team_members === 'string') {
+    try {
+      const parsed = JSON.parse(visit.team_members);
+      if (Array.isArray(parsed)) teamMembers = parsed;
+      else teamMembers = visit.team_members.split(',').map(s => s.trim()).filter(Boolean);
+    } catch {
+      teamMembers = visit.team_members.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -39,6 +57,12 @@ export default function VisitDetailModal({ visit, onClose }) {
               <span className="font-bold text-slate-800 flex items-center gap-1 text-sm mt-0.5">
                 <User size={14} className="text-emerald-600" /> {visit.staff_name}
               </span>
+              {visit.branch && (
+                <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-1 font-medium">
+                  <Building size={11} className="text-slate-400 shrink-0" />
+                  <span>សាខា៖ <b>{visit.branch}</b></span>
+                </div>
+              )}
             </div>
             <div>
               <span className="text-slate-400 text-[10px] font-bold block uppercase">ម្ចាស់ចំការ</span>
@@ -53,6 +77,27 @@ export default function VisitDetailModal({ visit, onClose }) {
               )}
             </div>
           </div>
+
+          {/* Team Members if any */}
+          {teamMembers.length > 0 && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+              <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
+                <Users size={13} className="text-emerald-600" />
+                <span>ក្រុមការងារចុះជាមួយ ({teamMembers.length} នាក់)៖</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {teamMembers.map((m, idx) => (
+                  <span 
+                    key={idx} 
+                    className="bg-white border border-slate-200 text-slate-800 px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                  >
+                    <UserCheck size={11} className="text-emerald-600" />
+                    <span>{m}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Location & GPS */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">

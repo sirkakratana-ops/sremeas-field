@@ -15,6 +15,22 @@ export const VARIETY_SUGGESTIONS = {
   'ម្រេច': ['ម្រេចកំពត', 'ម្រេចពូជខ្មែរ']
 };
 
+export const BRANCH_SUGGESTIONS = [
+  'ការិយាល័យកណ្តាល',
+  'កំពង់ចាម',
+  'ត្បូងឃ្មុំ',
+  'បាត់ដំបង',
+  'សៀមរាប',
+  'កំពង់ធំ',
+  'ពោធិ៍សាត់',
+  'បន្ទាយមានជ័យ',
+  'ក្រចេះ',
+  'ព្រៃវែង',
+  'តាកែវ',
+  'កំពត',
+  'កណ្តាល'
+];
+
 export const SQL_SCHEMA_SCRIPT = `-- ==========================================================
 -- 1. បន្ថែមជួរឈរ (Columns) ក្នុងតារាង customers
 -- ==========================================================
@@ -28,10 +44,12 @@ alter table if exists customers
   add column if not exists crops jsonb default '[]'::jsonb;
 
 -- ==========================================================
--- 2. បន្ថែមជួរឈរ crops ក្នុងតារាង field_visits
+-- 2. បន្ថែមជួរឈរ crops, branch, team_members ក្នុងតារាង field_visits
 -- ==========================================================
 alter table if exists field_visits 
-  add column if not exists crops jsonb default '[]'::jsonb;
+  add column if not exists crops jsonb default '[]'::jsonb,
+  add column if not exists branch text,
+  add column if not exists team_members jsonb default '[]'::jsonb;
 
 -- ==========================================================
 -- 3. បង្កើតតារាងបុគ្គលិក (Staff Table)
@@ -164,4 +182,39 @@ export function parseCrops(cropsData, fallbackCrop = '', fallbackSize = null) {
     }];
   }
   return [];
+}
+
+/**
+ * Fetch staff members from Supabase with localStorage / fallback support
+ */
+export async function getStaffList(supabaseClient) {
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.from('staff').select('*').order('name', { ascending: true });
+      if (!error && data && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Error fetching staff list:', e);
+  }
+
+  // LocalStorage fallback
+  try {
+    const local = localStorage.getItem('sremeas_local_staff');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+
+  return [
+    {
+      id: 'staff-default-admin',
+      name: 'Admin ប្រព័ន្ធ',
+      role: 'Admin',
+      branch: 'ការិយាល័យកណ្តាល',
+      status: 'សកម្ម'
+    }
+  ];
 }

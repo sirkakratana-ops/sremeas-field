@@ -9,6 +9,7 @@ import AdminDashboard from './components/AdminDashboard';
 import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
+import { getStaffList } from './staffUtils';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -23,6 +24,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'map' | 'customers' | 'admin'
   const [visits, setVisits] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -38,8 +40,13 @@ export default function App() {
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchVisits(), fetchCustomers()]);
+    await Promise.all([fetchVisits(), fetchCustomers(), fetchStaff()]);
     setLoading(false);
+  };
+
+  const fetchStaff = async () => {
+    const list = await getStaffList(supabase);
+    if (list) setStaffList(list);
   };
 
   const fetchVisits = async () => {
@@ -293,7 +300,10 @@ export default function App() {
             {activeTab === 'admin' && isAdmin && (
               <AdminDashboard 
                 currentUser={currentUser}
-                onStaffListChanged={fetchVisits}
+                onStaffListChanged={() => {
+                  fetchVisits();
+                  fetchStaff();
+                }}
               />
             )}
           </>
@@ -357,6 +367,7 @@ export default function App() {
         customers={customers}
         onCustomerCreated={handleCustomerCreated}
         currentUser={currentUser}
+        staffList={staffList}
       />
 
       <VisitDetailModal 

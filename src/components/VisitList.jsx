@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, User, Sprout, Image, AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, LayoutGrid, Phone, Package, ExternalLink } from 'lucide-react';
+import { 
+  Search, MapPin, Calendar, User, Sprout, Image, 
+  AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
+  LayoutGrid, Phone, Package, ExternalLink, Building, Users 
+} from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 
 export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
@@ -25,10 +29,14 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
       (cr.variety || '').toLowerCase().includes(s)
     );
 
+    const teamStr = Array.isArray(v.team_members) ? v.team_members.join(' ') : (typeof v.team_members === 'string' ? v.team_members : '');
+
     const matchSearch = 
       (v.customers?.name || '').toLowerCase().includes(s) ||
       (v.customers?.phone || '').toLowerCase().includes(s) ||
       (v.staff_name || '').toLowerCase().includes(s) ||
+      (v.branch || '').toLowerCase().includes(s) ||
+      teamStr.toLowerCase().includes(s) ||
       (v.location_address || '').toLowerCase().includes(s) ||
       (v.issues_identified || '').toLowerCase().includes(s) ||
       (v.products_recommended || '').toLowerCase().includes(s) ||
@@ -263,12 +271,24 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                         )}
                       </td>
 
-                      {/* Staff */}
+                      {/* Staff & Branch */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[11px] border border-slate-200">
+                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold text-[11px] border border-slate-200">
                           <User size={11} className="text-slate-500" />
                           <span>{visit.staff_name}</span>
                         </span>
+                        {visit.branch && (
+                          <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <Building size={10} className="text-slate-400" />
+                            <span>{visit.branch}</span>
+                          </div>
+                        )}
+                        {Array.isArray(visit.team_members) && visit.team_members.length > 0 && (
+                          <div className="text-[10px] text-emerald-700 flex items-center gap-1 mt-0.5" title={`រួមដំណើរ៖ ${visit.team_members.join(', ')}`}>
+                            <Users size={10} className="text-emerald-600" />
+                            <span>+{visit.team_members.length} នាក់</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Photos thumbnail */}
@@ -431,10 +451,24 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <User size={13} className="text-slate-400 shrink-0" />
-                      <span className="truncate">បុគ្គលិក: <strong>{visit.staff_name}</strong></span>
+                    <div className="flex items-center justify-between gap-1 text-slate-500">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <User size={13} className="text-slate-400 shrink-0" />
+                        <span className="truncate">បុគ្គលិក: <strong>{visit.staff_name}</strong></span>
+                      </div>
+                      {visit.branch && (
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium shrink-0 flex items-center gap-0.5">
+                          <Building size={10} /> {visit.branch}
+                        </span>
+                      )}
                     </div>
+
+                    {Array.isArray(visit.team_members) && visit.team_members.length > 0 && (
+                      <div className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50/70 px-2 py-1 rounded-lg border border-emerald-100">
+                        <Users size={12} className="text-emerald-600 shrink-0" />
+                        <span className="truncate">ក្រុមការងារ៖ {visit.team_members.join(', ')}</span>
+                      </div>
+                    )}
 
                     {(visit.location_address || visit.customers?.village) && (
                       <div className="flex items-center gap-1.5 text-slate-500">
