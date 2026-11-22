@@ -203,7 +203,7 @@ export default function VisitDetailModal({ visit, onClose }) {
               {visit.issues_identified && (
                 <div>
                   <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
-                    <AlertTriangle size={12} className="text-amber-500" /> បញ្ហាដែលបានជួបប្រទះ៖
+                    <AlertTriangle size={12} className="text-amber-500" /> បញ្ហាប្រឈម៖
                   </span>
                   <p className="text-slate-800 mt-0.5 pl-4">{visit.issues_identified}</p>
                 </div>
@@ -211,11 +211,23 @@ export default function VisitDetailModal({ visit, onClose }) {
               {visit.products_recommended && (
                 <div>
                   <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
-                    <PackageCheck size={12} className="text-emerald-600" /> ផលិតផលដែលបានណែនាំ/លក់៖
+                    <PackageCheck size={12} className="text-emerald-600" /> ដំណោះស្រាយ / ផលិតផលណែនាំ៖
                   </span>
                   <p className="text-slate-800 mt-0.5 pl-4">{visit.products_recommended}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Farmer History */}
+          {(visit.farmer_history || (visit.notes && visit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:'))) && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
+                <FileText size={12} className="text-emerald-600" /> ប្រវត្តិប្រើប្រាស់របស់កសិករ៖
+              </span>
+              <p className="text-slate-800 font-medium pl-4">
+                {visit.farmer_history || visit.notes?.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i)?.[1]}
+              </p>
             </div>
           )}
 

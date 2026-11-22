@@ -96,6 +96,7 @@ export default function NewVisitModal({
   const [cropStatus, setCropStatus] = useState('ល្អ');
   const [issuesIdentified, setIssuesIdentified] = useState('');
   const [productsRecommended, setProductsRecommended] = useState('');
+  const [farmerHistory, setFarmerHistory] = useState('ស្រែមាស');
   const [followUpDate, setFollowUpDate] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -145,6 +146,12 @@ export default function NewVisitModal({
       setCropStatus(visitToEdit.crop_status || 'ល្អ');
       setIssuesIdentified(visitToEdit.issues_identified || '');
       setProductsRecommended(visitToEdit.products_recommended || '');
+      let extractedHistory = visitToEdit.farmer_history || '';
+      if (!extractedHistory && visitToEdit.notes && visitToEdit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+        const m = visitToEdit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
+        if (m) extractedHistory = m[1].trim();
+      }
+      setFarmerHistory(extractedHistory || 'ស្រែមាស');
       setFollowUpDate(visitToEdit.follow_up_date || '');
       setNotes(visitToEdit.notes || '');
       setExistingPhotos(visitToEdit.photos || []);
@@ -169,6 +176,7 @@ export default function NewVisitModal({
       setCropStatus('ល្អ');
       setIssuesIdentified('');
       setProductsRecommended('');
+      setFarmerHistory('ស្រែមាស');
       setFollowUpDate('');
       setNotes('');
       setExistingPhotos([]);
@@ -369,9 +377,9 @@ export default function NewVisitModal({
     }
     if (!res.error) return res.data;
 
-    // Attempt 2: fallback without branch & team_members if columns do not exist
+    // Attempt 2: fallback without branch, team_members & farmer_history if columns do not exist
     if (res.error.message?.includes('column') || res.error.code === 'PGRST204' || res.error.code === '42703') {
-      const { branch: _b, team_members: _tm, ...payloadNoBranch } = payload;
+      const { farmer_history: _fh, branch: _b, team_members: _tm, ...payloadNoBranch } = payload;
       let res2;
       if (visitId) {
         res2 = await supabase.from('field_visits').update(payloadNoBranch).eq('id', visitId).select().single();
@@ -429,6 +437,14 @@ export default function NewVisitModal({
       const primaryCropType = visitCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
       const totalHa = visitCrops.reduce((sum, c) => sum + (parseFloat(c.farm_size_ha) || 0), 0) || null;
 
+      // Combine notes with farmerHistory so it's persisted in notes column as well
+      let combinedNotes = notes.trim();
+      if (farmerHistory.trim()) {
+        combinedNotes = combinedNotes 
+          ? `[ប្រវត្តិប្រើប្រាស់]: ${farmerHistory.trim()}\n${combinedNotes}` 
+          : `[ប្រវត្តិប្រើប្រាស់]: ${farmerHistory.trim()}`;
+      }
+
       // 2. Full Visit Payload
       const payload = {
         staff_name: staffName.trim(),
@@ -441,12 +457,13 @@ export default function NewVisitModal({
         crop_type: primaryCropType,
         farm_size_ha: totalHa,
         crops: visitCrops,
-        crop_status: cropStatus,
+        crop_status: cropStatus.trim() || 'ល្អ',
         issues_identified: issuesIdentified.trim() || null,
         products_recommended: productsRecommended.trim() || null,
+        farmer_history: farmerHistory.trim() || null,
         follow_up_date: followUpDate || null,
         photos: allPhotos,
-        notes: notes.trim() || null
+        notes: combinedNotes || null
       };
 
       const savedData = await saveVisitToSupabase(payload, visitToEdit?.id);
@@ -454,6 +471,7 @@ export default function NewVisitModal({
       const customerObj = customers.find(c => c.id === selectedCustomerId);
       const visitWithCustomer = {
         ...savedData,
+        farmer_history: farmerHistory.trim() || null,
         customers: customerObj || null
       };
 
@@ -930,11 +948,16 @@ export default function NewVisitModal({
 
           {/* ===================== SECTION 5: CROP STATUS ===================== */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-              <Activity size={13} className="text-slate-500" />
-              <span>ស្ថានភាពដំណាំទូទៅ</span>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Activity size={13} className="text-slate-500" />
+                <span>ស្ថានភាពទូទៅនៃចម្ការ</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-normal">
+                (ជ្រើសរើស ឬវាយបញ្ចូលលម្អិត)
+              </span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 mb-1.5">
               {['ល្អ', 'មធ្យម', 'មានបញ្ហា/ជំងឺ'].map((status) => (
                 <button
                   key={status}
@@ -950,19 +973,26 @@ export default function NewVisitModal({
                 </button>
               ))}
             </div>
+            <input 
+              type="text" 
+              value={cropStatus} 
+              onChange={e => setCropStatus(e.target.value)} 
+              placeholder="ឧ. ស្លឹកចាស់ល្អស្មើគ្នា តែមានសញ្ញាត្រួយ ចេញមកតិចតួច..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+            />
           </div>
 
           {/* Issues & Products */}
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
               <AlertCircle size={13} className="text-amber-500" />
-              <span>បញ្ហាប្រឈមដែលជួបប្រទះ (បើមាន)</span>
+              <span>បញ្ហាប្រឈម</span>
             </label>
             <input 
               type="text" 
               value={issuesIdentified} 
               onChange={e => setIssuesIdentified(e.target.value)} 
-              placeholder="ឧ. សត្វល្អិតស៊ីត្រួយ, ជំងឺផ្សិតស្លឹក..."
+              placeholder="ឧ. ពីងពាងក្រហម, កើតជំងឺតាមគល់, ចៃស្រកា..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
             />
           </div>
@@ -970,14 +1000,28 @@ export default function NewVisitModal({
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
               <Package size={13} className="text-slate-500" />
-              <span>ផលិតផលដែលបានណែនាំ / លក់ជូន</span>
+              <span>ដំណោះស្រាយ (ផលិតផលណែនាំ / វិធានការ)</span>
             </label>
             <input 
               type="text" 
               value={productsRecommended} 
               onChange={e => setProductsRecommended(e.target.value)} 
-              placeholder="ឧ. ជីធម្មជាតិ X, ថ្នាំបាញ់កម្ចាត់ផ្សិត Y..."
+              placeholder="ឧ. ផ្តាច់ទឹកបន្ត, បាញ់ ប៉ារីដា, ស្រោច កាឡាក់សុី, អាបា..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <FileText size={13} className="text-slate-500" />
+              <span>ប្រវត្តិប្រើប្រាស់របស់កសិករ</span>
+            </label>
+            <input 
+              type="text" 
+              value={farmerHistory} 
+              onChange={e => setFarmerHistory(e.target.value)} 
+              placeholder="ឧ. ស្រែមាស, ធ្លាប់ប្រើជី..., ធ្លាប់ប្រើថ្នាំ..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium"
             />
           </div>
 

@@ -2,35 +2,52 @@
 import { parseCrops } from './staffUtils';
 
 /**
- * Format field visit data into a clean, comprehensive Khmer report text for Telegram
+ * Format date in DD/MM/YYYY format
+ */
+export function formatTelegramDate(dateVal) {
+  if (!dateVal) return '';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return String(dateVal);
+  }
+}
+
+/**
+ * Format field visit data into the exact executive report format for Telegram
  */
 export function formatVisitTelegramText(visit) {
   if (!visit) return '';
 
-  const dateStr = visit.visit_date 
-    ? new Date(visit.visit_date).toLocaleDateString('km-KH', { 
-        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-      })
-    : new Date().toLocaleDateString('km-KH');
+  const dateStr = formatTelegramDate(visit.visit_date) || formatTelegramDate(new Date());
 
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
 
   // Format crops list
-  let cropsText = '';
+  let cropsDetails = [];
   if (crops.length > 0) {
-    cropsText = crops.map((c, i) => {
-      let parts = [`  ${i + 1}. ${c.crop_type || 'ដំណាំ'}`];
+    cropsDetails = crops.map(c => {
+      let parts = [c.crop_type || 'ដំណាំ'];
       if (c.variety) parts.push(`ពូជ: ${c.variety}`);
-      if (c.farm_size_ha) parts.push(`ផ្ទៃដី: ${c.farm_size_ha} ហ.ត`);
-      if (c.plant_count) parts.push(`ចំនួន: ${parseInt(c.plant_count, 10).toLocaleString()} ដើម`);
+      if (c.farm_size_ha) parts.push(`${c.farm_size_ha} ហ.ត`);
+      if (c.plant_count) parts.push(`${parseInt(c.plant_count, 10).toLocaleString()} ដើម`);
       if (c.crop_age) parts.push(`អាយុ: ${c.crop_age}`);
-      return parts.join(' | ');
-    }).join('\n');
+      return `• ${parts.join(' | ')}`;
+    });
   } else if (visit.crop_type) {
-    cropsText = `  • ${visit.crop_type} ${visit.farm_size_ha ? `(${visit.farm_size_ha} ហ.ត)` : ''}`;
-  } else {
-    cropsText = '  • មិនបានបញ្ជាក់';
+    cropsDetails = [`• ${visit.crop_type} ${visit.farm_size_ha ? `(${visit.farm_size_ha} ហ.ត)` : ''}`];
   }
+
+  const conditionLines = [
+    ...cropsDetails,
+    visit.crop_status ? (cropsDetails.length > 0 ? `• ស្ថានភាពជាក់ស្តែង: ${visit.crop_status}` : visit.crop_status) : null
+  ].filter(Boolean);
+  const conditionText = conditionLines.length > 0 ? conditionLines.join('\n') : 'ល្អ';
 
   // Location string
   const locStr = visit.location_address || 
@@ -43,7 +60,7 @@ export function formatVisitTelegramText(visit) {
   // Google Maps URL
   const mapsUrl = (visit.latitude && visit.longitude) 
     ? `https://www.google.com/maps?q=${visit.latitude},${visit.longitude}` 
-    : '';
+    : 'គ្មាន';
 
   // Team members
   let teamStr = '';
@@ -53,38 +70,46 @@ export function formatVisitTelegramText(visit) {
     teamStr = visit.team_members;
   }
 
-  // Follow up date
-  const followUpStr = visit.follow_up_date 
-    ? new Date(visit.follow_up_date).toLocaleDateString('km-KH') 
-    : '';
-
-  // Photos
-  const photos = Array.isArray(visit.photos) ? visit.photos.filter(Boolean) : [];
+  // Farmer usage history
+  let farmerHistoryText = '';
+  if (visit.farmer_history && visit.farmer_history.trim()) {
+    farmerHistoryText = visit.farmer_history.trim();
+  } else if (visit.notes && visit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+    const m = visit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
+    if (m) farmerHistoryText = m[1].trim();
+  } else if (visit.notes && visit.notes.trim()) {
+    farmerHistoryText = visit.notes.trim();
+  } else {
+    farmerHistoryText = 'ស្រែមាស';
+  }
 
   const lines = [
-    `របាយការណ៍ចុះពិនិត្យចំការ (Field Visit Report)`,
-    `========================================`,
+    `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
+    `=============================`,
     `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    visit.customers?.phone ? `លេខទូរស័ព្ទ: ${visit.customers.phone}` : null,
+    `លេខទូរស័ព្ទ: ${visit.customers?.phone || '—'}`,
     `ទីតាំងចំការ: ${locStr}`,
-    mapsUrl ? `ផែនទី GPS: ${mapsUrl}` : null,
+    `ផែនទី GPS: ${mapsUrl}`,
     `----------------------------------------`,
-    `ព័ត៌មានដំណាំ:`,
-    cropsText,
-    `ស្ថានភាពដំណាំ: ${visit.crop_status || 'ល្អ'}`,
-    visit.issues_identified ? `បញ្ហាជួបប្រទះ: ${visit.issues_identified}` : null,
-    visit.products_recommended ? `ផលិតផលណែនាំ: ${visit.products_recommended}` : null,
-    followUpStr ? `កាលបរិច្ឆេទតាមដានបន្ត: ${followUpStr}` : null,
-    visit.notes ? `ចំណាំបន្ថែម: ${visit.notes}` : null,
-    photos.length > 0 ? `រូបភាពជាក់ស្តែង (${photos.length} សន្លឹក):\n${photos.map((p, i) => `  [រូប ${i + 1}] ${p}`).join('\n')}` : null,
+    `ស្ថានភាពទូទៅនៃចម្ការ:`,
+    conditionText,
+    `----------------------------------------`,
+    `បញ្ហាប្រឈម:`,
+    visit.issues_identified || 'គ្មាន',
+    `----------------------------------------`,
+    `ដំណោះស្រាយ:`,
+    visit.products_recommended || 'គ្មាន',
+    `----------------------------------------`,
+    `ប្រវត្តិប្រើប្រាស់របស់កសិករ:`,
+    farmerHistoryText,
     `----------------------------------------`,
     `បុគ្គលិកចុះផ្ទាល់: ${visit.staff_name || '—'}`,
-    visit.branch ? `សាខា: ${visit.branch}` : null,
-    teamStr ? `ក្រុមការងាររួមដំណើរ: ${teamStr}` : null,
+    `សាខា: ${visit.branch || '—'}`,
+    `ក្រុមការងាររួមដំណើរ: ${teamStr || 'គ្មាន'}`,
     `កាលបរិច្ឆេទចុះ: ${dateStr}`,
-    `========================================`,
-    `ប្រព័ន្ធគ្រប់គ្រងការចុះចំការ ស្រែទាស`
-  ].filter(Boolean);
+    `=============================`,
+    `សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`
+  ];
 
   return lines.join('\n');
 }
@@ -95,6 +120,7 @@ export function formatVisitTelegramText(visit) {
 export function formatVisitTelegramSummary(visit) {
   if (!visit) return '';
 
+  const dateStr = formatTelegramDate(visit.visit_date) || formatTelegramDate(new Date());
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
   const cropsSummary = crops.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''}`).filter(Boolean).join(', ') || visit.crop_type || '—';
 
@@ -105,17 +131,36 @@ export function formatVisitTelegramSummary(visit) {
     visit.customers?.village || 
     '—';
 
+  let teamStr = '';
+  if (Array.isArray(visit.team_members) && visit.team_members.length > 0) {
+    teamStr = visit.team_members.join(', ');
+  } else if (typeof visit.team_members === 'string' && visit.team_members.trim()) {
+    teamStr = visit.team_members;
+  }
+
+  let farmerHistoryText = visit.farmer_history || 
+    (visit.notes && visit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:') ? visit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i)?.[1] : '') || 
+    visit.notes || 
+    'ស្រែមាស';
+
   const lines = [
-    `របាយការណ៍ចុះចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    visit.customers?.phone ? `ទូរស័ព្ទ: ${visit.customers.phone}` : null,
-    `ទីតាំង: ${locStr}`,
+    `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
+    `=============================`,
+    `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
+    `លេខទូរស័ព្ទ: ${visit.customers?.phone || '—'}`,
+    `ទីតាំងចំការ: ${locStr}`,
     `ដំណាំ: ${cropsSummary}`,
-    `ស្ថានភាព: ${visit.crop_status || 'ល្អ'}`,
-    visit.issues_identified ? `បញ្ហា: ${visit.issues_identified}` : null,
-    visit.products_recommended ? `ណែនាំ: ${visit.products_recommended}` : null,
-    `បុគ្គលិក: ${visit.staff_name || '—'}${visit.branch ? ` (${visit.branch})` : ''}`,
-    `កាលបរិច្ឆេទ: ${visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('km-KH') : ''}`
-  ].filter(Boolean);
+    `ស្ថានភាពទូទៅនៃចម្ការ: ${visit.crop_status || 'ល្អ'}`,
+    `បញ្ហាប្រឈម: ${visit.issues_identified || 'គ្មាន'}`,
+    `ដំណោះស្រាយ: ${visit.products_recommended || 'គ្មាន'}`,
+    `ប្រវត្តិប្រើប្រាស់: ${farmerHistoryText}`,
+    `បុគ្គលិកចុះផ្ទាល់: ${visit.staff_name || '—'}`,
+    `សាខា: ${visit.branch || '—'}`,
+    `ក្រុមការងាររួមដំណើរ: ${teamStr || 'គ្មាន'}`,
+    `កាលបរិច្ឆេទចុះ: ${dateStr}`,
+    `=============================`,
+    `សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`
+  ];
 
   return lines.join('\n');
 }

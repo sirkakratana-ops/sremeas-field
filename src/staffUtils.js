@@ -43,12 +43,13 @@ alter table if exists customers
   add column if not exists branch text;
 
 -- ==========================================================
--- 2. បន្ថែមជួរឈរ crops, branch, team_members ក្នុងតារាង field_visits
+-- 2. បន្ថែមជួរឈរ crops, branch, team_members, farmer_history ក្នុងតារាង field_visits
 -- ==========================================================
 alter table if exists field_visits 
   add column if not exists crops jsonb default '[]'::jsonb,
   add column if not exists branch text,
-  add column if not exists team_members jsonb default '[]'::jsonb;
+  add column if not exists team_members jsonb default '[]'::jsonb,
+  add column if not exists farmer_history text;
 
 -- ==========================================================
 -- 3. បង្កើតតារាងបុគ្គលិក (Staff Table)
