@@ -1,8 +1,13 @@
 import React from 'react';
 import { X, MapPin, Calendar, User, Sprout, AlertTriangle, PackageCheck, FileText, Phone, ExternalLink, Image } from 'lucide-react';
+import { parseCrops } from '../staffUtils';
 
 export default function VisitDetailModal({ visit, onClose }) {
   if (!visit) return null;
+
+  const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
+  const totalHa = crops.reduce((s, c) => s + (parseFloat(c.farm_size_ha) || 0), 0) || visit.farm_size_ha || 0;
+  const totalPlants = crops.reduce((s, c) => s + (parseInt(c.plant_count, 10) || 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -75,28 +80,71 @@ export default function VisitDetailModal({ visit, onClose }) {
             )}
           </div>
 
-          {/* Crop Info */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
-              <span className="text-slate-400 text-[10px] block">ប្រភេទដំណាំ</span>
-              <strong className="text-slate-800 text-xs block mt-0.5">{visit.crop_type || '—'}</strong>
-            </div>
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
-              <span className="text-slate-400 text-[10px] block">ទំហំដី</span>
-              <strong className="text-slate-800 text-xs block mt-0.5">{visit.farm_size_ha ? `${visit.farm_size_ha} ហ.ត` : '—'}</strong>
-            </div>
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
-              <span className="text-slate-400 text-[10px] block">ស្ថានភាព</span>
-              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mt-0.5 ${
-                visit.crop_status === 'ល្អ' 
-                  ? 'bg-emerald-100 text-emerald-800' 
-                  : visit.crop_status === 'មធ្យម'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-rose-100 text-rose-800'
-              }`}>
-                {visit.crop_status || '—'}
+          {/* Crop Info: Multi-crop breakdown */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+              <span className="font-bold text-slate-800 flex items-center gap-1 text-xs">
+                <Sprout size={14} className="text-emerald-600" />
+                <span>ព័ត៌មានដំណាំក្នុងចំការ ({crops.length} មុខ)</span>
               </span>
+
+              <div className="flex items-center gap-2">
+                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  visit.crop_status === 'ល្អ' 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                    : visit.crop_status === 'មធ្យម'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  ស្ថានភាព៖ {visit.crop_status || '—'}
+                </span>
+              </div>
             </div>
+
+            {crops.length > 0 ? (
+              <div className="space-y-2">
+                {crops.map((c, idx) => (
+                  <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1 text-xs">
+                        <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 text-[9px] flex items-center justify-center font-mono">
+                          {idx + 1}
+                        </span>
+                        <span>{c.crop_type}</span>
+                        {c.variety && (
+                          <span className="text-[11px] text-slate-500 font-normal">
+                            (ពូជ: <b>{c.variety}</b>)
+                          </span>
+                        )}
+                      </span>
+
+                      {c.farm_size_ha && (
+                        <span className="font-mono text-emerald-700 font-bold text-xs">
+                          {c.farm_size_ha} ហិកតា
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 pt-0.5">
+                      {c.plant_count && (
+                        <span>ចំនួនដើម៖ <b className="text-slate-700">{parseInt(c.plant_count, 10).toLocaleString()} ដើម</b></span>
+                      )}
+                      {c.crop_age && (
+                        <span>• អាយុដំណាំ៖ <b className="text-slate-700">{c.crop_age}</b></span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Totals */}
+                <div className="flex items-center justify-between pt-1 px-1 text-[11px] text-slate-600 font-bold border-t border-slate-200">
+                  <span>ផ្ទៃដីសរុប៖ {totalHa ? `${Number(totalHa).toFixed(1)} ហិកតា` : '—'}</span>
+                  {totalPlants > 0 && <span>ចំនួនដើមសរុប៖ {totalPlants.toLocaleString()} ដើម</span>}
+                </div>
+              </div>
+            ) : (
+              <p className="text-slate-400 text-center py-2">មិនមានព័ត៌មានដំណាំលម្អិត</p>
+            )}
           </div>
 
           {/* Issues & Recommendations */}

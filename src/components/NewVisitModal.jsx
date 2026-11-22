@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
-import { MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, User, Users, Save, Navigation, Sprout, Ruler, Activity, AlertCircle, Package, Calendar, FileText, Edit, ExternalLink } from 'lucide-react';
-
-const CROP_SUGGESTIONS = ['ស្វាយចន្ទី', 'ស្រូវ', 'ទុរេន', 'ដំឡូងមី', 'ពោត', 'ស្វាយ', 'ម្រេច', 'កៅស៊ូ', 'បន្លែចម្រុះ'];
+import { 
+  MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, 
+  User, Users, Save, Navigation, Sprout, Activity, 
+  AlertCircle, Package, Calendar, FileText, Edit, ExternalLink 
+} from 'lucide-react';
+import CropsEditor from './CropsEditor';
+import { parseCrops } from '../staffUtils';
 
 export default function NewVisitModal({ isOpen, onClose, onVisitCreated, customers, onCustomerCreated, visitToEdit, currentUser }) {
   const [staffName, setStaffName] = useState(() => currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
@@ -18,7 +22,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
   const [newCustCommune, setNewCustCommune] = useState('');
   const [newCustDistrict, setNewCustDistrict] = useState('');
   const [newCustProvince, setNewCustProvince] = useState('');
-  const [newCustCrop, setNewCustCrop] = useState('');
+  const [newCustCrops, setNewCustCrops] = useState([]);
 
   // Visit Fields
   const [latitude, setLatitude] = useState(null);
@@ -26,8 +30,8 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
   const [locationAddress, setLocationAddress] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
   
-  const [cropType, setCropType] = useState('ស្វាយចន្ទី');
-  const [farmSizeHa, setFarmSizeHa] = useState('');
+  // Crops inspected in this visit
+  const [visitCrops, setVisitCrops] = useState([]);
   const [cropStatus, setCropStatus] = useState('ល្អ');
   const [issuesIdentified, setIssuesIdentified] = useState('');
   const [productsRecommended, setProductsRecommended] = useState('');
@@ -50,8 +54,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       setLatitude(visitToEdit.latitude || null);
       setLongitude(visitToEdit.longitude || null);
       setLocationAddress(visitToEdit.location_address || '');
-      setCropType(visitToEdit.crop_type || 'ស្វាយចន្ទី');
-      setFarmSizeHa(visitToEdit.farm_size_ha != null ? visitToEdit.farm_size_ha.toString() : '');
+      setVisitCrops(parseCrops(visitToEdit.crops, visitToEdit.crop_type, visitToEdit.farm_size_ha));
       setCropStatus(visitToEdit.crop_status || 'ល្អ');
       setIssuesIdentified(visitToEdit.issues_identified || '');
       setProductsRecommended(visitToEdit.products_recommended || '');
@@ -67,8 +70,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       setLatitude(null);
       setLongitude(null);
       setLocationAddress('');
-      setCropType('ស្វាយចន្ទី');
-      setFarmSizeHa('');
+      setVisitCrops([
+        { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
+      ]);
       setCropStatus('ល្អ');
       setIssuesIdentified('');
       setProductsRecommended('');
@@ -78,6 +82,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       setPhotoFiles([]);
       setPhotoPreviews([]);
       setShowAddCustomer(false);
+      setNewCustCrops([
+        { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
+      ]);
       handleGetGPS();
     }
   }, [isOpen, visitToEdit, currentUser]);
@@ -124,6 +131,8 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
     e.preventDefault();
     if (!newCustName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
 
+    const primaryCropString = newCustCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+
     const payload = {
       name: newCustName.trim(),
       gender: newCustGender || 'ប្រុស',
@@ -133,7 +142,8 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       commune: newCustCommune.trim() || null,
       district: newCustDistrict.trim() || null,
       province: newCustProvince.trim() || null,
-      primary_crop: newCustCrop || null,
+      primary_crop: primaryCropString,
+      crops: newCustCrops,
       latitude: latitude || null,
       longitude: longitude || null
     };
@@ -147,7 +157,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             phone: newCustPhone.trim() || null,
             village: newCustVillage.trim() || null,
             province: newCustProvince.trim() || null,
-            primary_crop: newCustCrop || null
+            primary_crop: primaryCropString
           };
           const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
           if (fbErr) throw fbErr;
@@ -163,7 +173,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
         setSelectedCustomerId(data.id);
       }
 
-      if (payload.primary_crop) setCropType(payload.primary_crop);
+      if (newCustCrops.length > 0) {
+        setVisitCrops(newCustCrops);
+      }
       const fullAddr = [payload.village, payload.commune, payload.district, payload.province].filter(Boolean).join(' ');
       if (fullAddr && !locationAddress) setLocationAddress(fullAddr);
       setShowAddCustomer(false);
@@ -199,6 +211,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
       const allPhotos = [...existingPhotos, ...uploadedUrls];
 
+      // Primary crop name and total size for backward compatibility
+      const primaryCropType = visitCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+      const totalHa = visitCrops.reduce((sum, c) => sum + (parseFloat(c.farm_size_ha) || 0), 0) || null;
+
       // 2. Insert or Update field_visit
       const payload = {
         staff_name: staffName.trim(),
@@ -206,8 +222,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
         latitude: latitude || null,
         longitude: longitude || null,
         location_address: locationAddress.trim() || null,
-        crop_type: cropType || null,
-        farm_size_ha: farmSizeHa ? parseFloat(farmSizeHa) : null,
+        crop_type: primaryCropType,
+        farm_size_ha: totalHa,
+        crops: visitCrops,
         crop_status: cropStatus,
         issues_identified: issuesIdentified.trim() || null,
         products_recommended: productsRecommended.trim() || null,
@@ -218,14 +235,37 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
       if (visitToEdit) {
         const { data, error } = await supabase.from('field_visits').update(payload).eq('id', visitToEdit.id).select().single();
-        if (error) throw error;
-        alert("បានកែប្រែកំណត់ត្រាជោគជ័យ!");
-        onVisitCreated(data);
+        if (error) {
+          if (error.message.includes('column') || error.code === 'PGRST204') {
+            // Retry without crops column
+            const { crops: _, ...fallbackPayload } = payload;
+            const { data: fbData, error: fbErr } = await supabase.from('field_visits').update(fallbackPayload).eq('id', visitToEdit.id).select().single();
+            if (fbErr) throw fbErr;
+            alert("បានកែប្រែកំណត់ត្រាជោគជ័យ!");
+            onVisitCreated({ ...fbData, crops: visitCrops });
+          } else {
+            throw error;
+          }
+        } else {
+          alert("បានកែប្រែកំណត់ត្រាជោគជ័យ!");
+          onVisitCreated(data);
+        }
       } else {
         const { data, error } = await supabase.from('field_visits').insert([payload]).select().single();
-        if (error) throw error;
-        alert("កត់ត្រាការចុះចំការបានជោគជ័យ!");
-        onVisitCreated(data);
+        if (error) {
+          if (error.message.includes('column') || error.code === 'PGRST204') {
+            const { crops: _, ...fallbackPayload } = payload;
+            const { data: fbData, error: fbErr } = await supabase.from('field_visits').insert([fallbackPayload]).select().single();
+            if (fbErr) throw fbErr;
+            alert("កត់ត្រាការចុះចំការបានជោគជ័យ!");
+            onVisitCreated({ ...fbData, crops: visitCrops });
+          } else {
+            throw error;
+          }
+        } else {
+          alert("កត់ត្រាការចុះចំការបានជោគជ័យ!");
+          onVisitCreated(data);
+        }
       }
 
       onClose();
@@ -315,37 +355,31 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                   </select>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <select
-                      value={newCustType}
-                      onChange={e => setNewCustType(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold"
-                    >
-                      <option value="កសិករ">កសិករ</option>
-                      <option value="ដេប៉ូ">ដេប៉ូ</option>
-                      <option value="ផ្សេងៗ">ផ្សេងៗ</option>
-                    </select>
-                  </div>
-                  <div>
-                    <input 
-                      type="text" 
-                      placeholder="លេខទូរស័ព្ទ" 
-                      value={newCustPhone} 
-                      onChange={e => setNewCustPhone(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <input 
-                      type="text" 
-                      placeholder="ដំណាំ (ឧ. ស្វាយចន្ទី)" 
-                      value={newCustCrop} 
-                      onChange={e => setNewCustCrop(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
-                    />
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={newCustType}
+                    onChange={e => setNewCustType(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold"
+                  >
+                    <option value="កសិករ">កសិករ</option>
+                    <option value="ដេប៉ូ">ដេប៉ូ</option>
+                    <option value="ផ្សេងៗ">ផ្សេងៗ</option>
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="លេខទូរស័ព្ទ" 
+                    value={newCustPhone} 
+                    onChange={e => setNewCustPhone(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
+                  />
                 </div>
+
+                {/* Crops for new customer */}
+                <CropsEditor
+                  crops={newCustCrops}
+                  onChange={setNewCustCrops}
+                  title="ដំណាំរបស់អតិថិជនថ្មី"
+                />
 
                 <div className="grid grid-cols-2 gap-2">
                   <input 
@@ -396,19 +430,33 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                 onChange={e => {
                   setSelectedCustomerId(e.target.value);
                   const cust = customers.find(c => c.id === e.target.value);
-                  if (cust?.primary_crop && !visitToEdit) setCropType(cust.primary_crop);
-                  if ((cust?.village || cust?.province) && !locationAddress) {
-                    setLocationAddress(`${cust.village || ''} ${cust.province || ''}`.trim());
+                  if (cust && !visitToEdit) {
+                    const custCrops = parseCrops(cust.crops, cust.primary_crop);
+                    if (custCrops.length > 0) {
+                      setVisitCrops(custCrops);
+                    }
+                    const fullAddr = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(' ');
+                    if (fullAddr && !locationAddress) {
+                      setLocationAddress(fullAddr);
+                    }
+                    if (cust.latitude && cust.longitude && !latitude) {
+                      setLatitude(cust.latitude);
+                      setLongitude(cust.longitude);
+                    }
                   }
                 }}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800"
               >
                 <option value="">-- ជ្រើសរើសអតិថិជន --</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''} {c.province ? `- ${c.province}` : ''}
-                  </option>
-                ))}
+                {customers.map(c => {
+                  const crops = parseCrops(c.crops, c.primary_crop);
+                  const cropsDesc = crops.map(cr => cr.crop_type).filter(Boolean).join(', ');
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ''} {cropsDesc ? `• ដំណាំ៖ ${cropsDesc}` : ''}
+                    </option>
+                  );
+                })}
               </select>
             )}
           </div>
@@ -465,48 +513,18 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             />
           </div>
 
-          {/* Farm Details */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Sprout size={13} className="text-slate-500" />
-                <span>ប្រភេទដំណាំ</span>
-              </label>
-              <input 
-                type="text" 
-                list="cropsList"
-                value={cropType} 
-                onChange={e => setCropType(e.target.value)}
-                placeholder="ជ្រើសរើស ឬវាយបញ្ចូល..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
-              />
-              <datalist id="cropsList">
-                {CROP_SUGGESTIONS.map((c, i) => <option key={i} value={c} />)}
-              </datalist>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Ruler size={13} className="text-slate-500" />
-                <span>ទំហំដី (ហិកតា)</span>
-              </label>
-              <input 
-                type="number" 
-                step="0.1" 
-                min="0"
-                value={farmSizeHa} 
-                onChange={e => setFarmSizeHa(e.target.value)}
-                placeholder="ឧ. 3.5"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
-              />
-            </div>
-          </div>
+          {/* ===================== CROPS EDITOR (ព័ត៌មានដំណាំដែលបានចុះពិនិត្យ) ===================== */}
+          <CropsEditor
+            crops={visitCrops}
+            onChange={setVisitCrops}
+            title="ព័ត៌មានដំណាំដែលបានចុះពិនិត្យ"
+          />
 
           {/* Crop Status */}
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
               <Activity size={13} className="text-slate-500" />
-              <span>ស្ថានភាពដំណាំ</span>
+              <span>ស្ថានភាពដំណាំទូទៅ</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {['ល្អ', 'មធ្យម', 'មានបញ្ហា/ជំងឺ'].map((status) => (
@@ -535,7 +553,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             <input 
               type="text" 
               value={issuesIdentified} 
-              onChange={e => setIssuesIdentified(e.target.value)}
+              onChange={e => setIssuesIdentified(e.target.value)} 
               placeholder="ឧ. សត្វល្អិតស៊ីត្រួយ, ជំងឺផ្សិតស្លឹក..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
             />
@@ -549,7 +567,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             <input 
               type="text" 
               value={productsRecommended} 
-              onChange={e => setProductsRecommended(e.target.value)}
+              onChange={e => setProductsRecommended(e.target.value)} 
               placeholder="ឧ. ជីធម្មជាតិ X, ថ្នាំបាញ់កម្ចាត់ផ្សិត Y..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
             />

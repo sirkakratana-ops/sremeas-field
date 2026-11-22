@@ -4,6 +4,7 @@ import { HeatLayer } from 'leaflet.heat';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { Flame, MapPin, Layers, AlertTriangle, Filter } from 'lucide-react';
+import { parseCrops } from '../staffUtils';
 
 const defaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -111,12 +112,17 @@ export default function MapView({ visits, onSelectVisit }) {
         const marker = L.marker([lat, lng], { icon: defaultIcon });
 
         const isProblem = v.crop_status === 'មានបញ្ហា/ជំងឺ';
+        const cropsList = parseCrops(v.crops, v.crop_type, v.farm_size_ha);
+        const cropsSummary = cropsList.length > 0 
+          ? cropsList.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''} ${c.farm_size_ha ? `${c.farm_size_ha} ហ.ត` : ''}`).join(', ')
+          : (v.crop_type || '—');
+
         const popupContent = `
           <div style="font-family: system-ui, -apple-system, sans-serif; font-size: 12px; line-height: 1.4; min-width: 170px;">
             <strong style="font-size: 13px; color: ${isProblem ? '#dc2626' : '#047857'}; display: block; margin-bottom: 2px;">
               ${v.customers?.name || 'ម្ចាស់ចំការ'}
             </strong>
-            <span style="color: #475569; font-size: 11px;">ដំណាំ៖ <b>${v.crop_type || '—'}</b> ${v.farm_size_ha ? `(${v.farm_size_ha} ហ.ត)` : ''}</span><br/>
+            <span style="color: #475569; font-size: 11px;">ដំណាំ៖ <b>${cropsSummary}</b></span><br/>
             <span style="color: #475569;">បុគ្គលិក៖ <b>${v.staff_name || '—'}</b></span><br/>
             <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin: 4px 0; background: ${isProblem ? '#fee2e2; color: #991b1b;' : '#d1fae5; color: #065f46;'}">
               ស្ថានភាព៖ ${v.crop_status || '—'}

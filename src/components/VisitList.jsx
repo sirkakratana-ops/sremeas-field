@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Calendar, User, Sprout, Image, AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, LayoutGrid, Phone, Package, ExternalLink } from 'lucide-react';
+import { parseCrops } from '../staffUtils';
 
 export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,19 +10,31 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
 
   const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
 
-  const cropTypes = ['All', ...Array.from(new Set(visits.map(v => v.crop_type).filter(Boolean)))];
+  const cropTypes = ['All', ...Array.from(new Set(
+    visits.flatMap(v => {
+      const crops = parseCrops(v.crops, v.crop_type, v.farm_size_ha);
+      return crops.map(c => c.crop_type);
+    }).filter(Boolean)
+  ))];
 
   const filtered = visits.filter(v => {
     const s = searchTerm.toLowerCase();
+    const crops = parseCrops(v.crops, v.crop_type, v.farm_size_ha);
+    const cropsMatchSearch = crops.some(cr => 
+      (cr.crop_type || '').toLowerCase().includes(s) ||
+      (cr.variety || '').toLowerCase().includes(s)
+    );
+
     const matchSearch = 
       (v.customers?.name || '').toLowerCase().includes(s) ||
       (v.customers?.phone || '').toLowerCase().includes(s) ||
       (v.staff_name || '').toLowerCase().includes(s) ||
       (v.location_address || '').toLowerCase().includes(s) ||
       (v.issues_identified || '').toLowerCase().includes(s) ||
-      (v.products_recommended || '').toLowerCase().includes(s);
+      (v.products_recommended || '').toLowerCase().includes(s) ||
+      cropsMatchSearch;
 
-    const matchCrop = filterCrop === 'All' || v.crop_type === filterCrop;
+    const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop) || v.crop_type === filterCrop;
     const matchStatus = filterStatus === 'All' || v.crop_status === filterStatus;
 
     return matchSearch && matchCrop && matchStatus;
@@ -131,6 +144,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                 {filtered.map(visit => {
                   const hasPhotos = visit.photos && visit.photos.length > 0;
                   const isProblem = visit.crop_status === 'មានបញ្ហា/ជំងឺ';
+                  const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
 
                   return (
                     <tr key={visit.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -161,14 +175,41 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                       </td>
 
                       {/* Crop & Size */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="font-bold text-slate-800 flex items-center gap-1">
-                          <Sprout size={13} className="text-emerald-600 shrink-0" />
-                          <span>{visit.crop_type || '—'}</span>
-                        </span>
-                        <span className="text-slate-500 text-[11px] block pl-4">
-                          {visit.farm_size_ha ? `${visit.farm_size_ha} ហិកតា` : '—'}
-                        </span>
+                      <td className="py-2.5 px-3 min-w-[180px]">
+                        {crops.length > 0 ? (
+                          <div className="space-y-1">
+                            {crops.map((c, idx) => (
+                              <div key={idx} className="text-xs">
+                                <div className="font-bold text-slate-800 flex items-center gap-1">
+                                  <Sprout size={12} className="text-emerald-600 shrink-0" />
+                                  <span>{c.crop_type}</span>
+                                  {c.variety && (
+                                    <span className="text-[11px] font-normal text-slate-500">
+                                      ({c.variety})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-500 pl-4 flex flex-wrap items-center gap-1">
+                                  {c.farm_size_ha ? (
+                                    <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-medium">
+                                      {c.farm_size_ha} ហ.ត
+                                    </span>
+                                  ) : null}
+                                  {c.plant_count ? (
+                                    <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded">
+                                      {parseInt(c.plant_count, 10).toLocaleString()} ដើម
+                                    </span>
+                                  ) : null}
+                                  {c.crop_age ? (
+                                    <span className="text-slate-400">{c.crop_age}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -300,6 +341,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
           {filtered.map(visit => {
             const hasPhotos = visit.photos && visit.photos.length > 0;
             const primaryPhoto = hasPhotos ? visit.photos[0] : null;
+            const cardCrops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
 
             return (
               <div 
@@ -360,14 +402,33 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between text-slate-700">
-                      <span className="flex items-center gap-1 font-bold text-emerald-800">
-                        <Sprout size={13} className="text-emerald-600" />
-                        {visit.crop_type || '—'} {visit.farm_size_ha ? `(${visit.farm_size_ha} ហ.ត)` : ''}
-                      </span>
-                      <span className="font-mono text-slate-400 text-[10px]">
-                        {new Date(visit.visit_date).toLocaleDateString('km-KH')}
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-slate-700">
+                        <span className="text-[11px] font-bold text-slate-500">ដំណាំ៖</span>
+                        <span className="font-mono text-slate-400 text-[10px]">
+                          {new Date(visit.visit_date).toLocaleDateString('km-KH')}
+                        </span>
+                      </div>
+                      {cardCrops.length > 0 ? (
+                        <div className="space-y-1">
+                          {cardCrops.map((c, idx) => (
+                            <div key={idx} className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 flex items-center justify-between text-xs">
+                              <span className="flex items-center gap-1 font-bold text-emerald-800">
+                                <Sprout size={12} className="text-emerald-600 shrink-0" />
+                                <span>{c.crop_type}</span>
+                                {c.variety && <span className="font-normal text-slate-500 text-[11px]">({c.variety})</span>}
+                              </span>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                                {c.farm_size_ha && <span className="bg-white px-1 py-0.2 rounded border border-slate-200">{c.farm_size_ha} ហ.ត</span>}
+                                {c.plant_count && <span>• {parseInt(c.plant_count, 10).toLocaleString()} ដើម</span>}
+                                {c.crop_age && <span>• {c.crop_age}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 text-xs">—</div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 text-slate-500">

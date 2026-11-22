@@ -3,8 +3,10 @@ import { supabase } from '../supabase';
 import { 
   User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, 
   Table as TableIcon, LayoutGrid, X, CheckCircle2, ClipboardList,
-  Navigation, Loader2, ExternalLink, Store, UserCheck
+  Navigation, Loader2, ExternalLink, Store, UserCheck, ChevronDown, ChevronUp
 } from 'lucide-react';
+import CropsEditor from './CropsEditor';
+import { parseCrops } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -18,6 +20,7 @@ export default function CustomerList({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterGender, setFilterGender] = useState('All');
+  const [filterCrop, setFilterCrop] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
   
   // Modals state
@@ -30,13 +33,14 @@ export default function CustomerList({
   const [formType, setFormType] = useState('កសិករ');
   const [formCustomType, setFormCustomType] = useState('');
   const [formPhone, setFormPhone] = useState('');
-  const [formCrop, setFormCrop] = useState('');
   const [formVillage, setFormVillage] = useState('');
   const [formCommune, setFormCommune] = useState('');
   const [formDistrict, setFormDistrict] = useState('');
   const [formProvince, setFormProvince] = useState('');
   const [formLatitude, setFormLatitude] = useState(null);
   const [formLongitude, setFormLongitude] = useState(null);
+  const [formCrops, setFormCrops] = useState([]);
+  
   const [gettingGPS, setGettingGPS] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -44,8 +48,22 @@ export default function CustomerList({
   const canDelete = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_customer);
   const canEdit = currentUser?.role === 'Admin' || currentUser?.permissions?.can_edit_customer !== false;
 
+  // Collect all unique crops across customers for filtering
+  const allCropTypes = ['All', ...Array.from(new Set(
+    customers.flatMap(c => {
+      const crops = parseCrops(c.crops, c.primary_crop);
+      return crops.map(cr => cr.crop_type);
+    }).filter(Boolean)
+  ))];
+
   const filtered = customers.filter(c => {
     const s = searchTerm.toLowerCase();
+    const crops = parseCrops(c.crops, c.primary_crop);
+    const cropsMatchSearch = crops.some(cr => 
+      (cr.crop_type || '').toLowerCase().includes(s) ||
+      (cr.variety || '').toLowerCase().includes(s)
+    );
+
     const matchSearch = 
       (c.name || '').toLowerCase().includes(s) ||
       (c.phone || '').toLowerCase().includes(s) ||
@@ -53,13 +71,14 @@ export default function CustomerList({
       (c.commune || '').toLowerCase().includes(s) ||
       (c.district || '').toLowerCase().includes(s) ||
       (c.province || '').toLowerCase().includes(s) ||
-      (c.primary_crop || '').toLowerCase().includes(s) ||
-      (c.customer_type || '').toLowerCase().includes(s);
+      (c.customer_type || '').toLowerCase().includes(s) ||
+      cropsMatchSearch;
 
     const matchType = filterType === 'All' || (c.customer_type || 'កសិករ') === filterType;
     const matchGender = filterGender === 'All' || (c.gender || '—') === filterGender;
+    const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop);
 
-    return matchSearch && matchType && matchGender;
+    return matchSearch && matchType && matchGender && matchCrop;
   });
 
   const handleOpenAdd = () => {
@@ -69,13 +88,15 @@ export default function CustomerList({
     setFormType('កសិករ');
     setFormCustomType('');
     setFormPhone('');
-    setFormCrop('ស្វាយចន្ទី');
     setFormVillage('');
     setFormCommune('');
     setFormDistrict('');
     setFormProvince('');
     setFormLatitude(null);
     setFormLongitude(null);
+    setFormCrops([
+      { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
+    ]);
     setIsAddModalOpen(true);
   };
 
@@ -94,13 +115,18 @@ export default function CustomerList({
     }
 
     setFormPhone(cust.phone || '');
-    setFormCrop(cust.primary_crop || '');
     setFormVillage(cust.village || '');
     setFormCommune(cust.commune || '');
     setFormDistrict(cust.district || '');
     setFormProvince(cust.province || '');
     setFormLatitude(cust.latitude || null);
     setFormLongitude(cust.longitude || null);
+
+    const parsed = parseCrops(cust.crops, cust.primary_crop);
+    setFormCrops(parsed.length > 0 ? parsed : [
+      { crop_type: 'ស្វាយចន្ទី', variety: '', farm_size_ha: '', plant_count: '', crop_age: '' }
+    ]);
+
     setIsAddModalOpen(true);
   };
 
@@ -133,12 +159,15 @@ export default function CustomerList({
       ? (formCustomType.trim() || 'ផ្សេងៗ') 
       : formType;
 
+    const primaryCropString = formCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+
     const payload = {
       name: formName.trim(),
       gender: formGender || 'ប្រុស',
       customer_type: resolvedType,
       phone: formPhone.trim() || null,
-      primary_crop: formCrop.trim() || null,
+      primary_crop: primaryCropString,
+      crops: formCrops,
       village: formVillage.trim() || null,
       commune: formCommune.trim() || null,
       district: formDistrict.trim() || null,
@@ -152,18 +181,18 @@ export default function CustomerList({
         // Try updating
         const { data, error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id).select().single();
         if (error) {
-          // If error is missing column, fallback to updating basic fields
+          // Fallback if 'crops' column not yet migrated
           if (error.message.includes('column') || error.code === 'PGRST204') {
             const fallbackPayload = {
               name: formName.trim(),
               phone: formPhone.trim() || null,
-              primary_crop: formCrop.trim() || null,
+              primary_crop: primaryCropString,
               village: formVillage.trim() || null,
               province: formProvince.trim() || null
             };
             const { data: fbData, error: fbErr } = await supabase.from('customers').update(fallbackPayload).eq('id', editingCustomer.id).select().single();
             if (fbErr) throw fbErr;
-            alert("បានកែប្រែព័ត៌មានអតិថិជន! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីគាំទ្រជួរឈរថ្មីពេញលេញ)");
+            alert("បានកែប្រែព័ត៌មានអតិថិជន! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីរក្សាទុកដំណាំច្រើនប្រភេទក្នុង Database)");
             if (onCustomerUpdated) onCustomerUpdated({ ...fbData, ...payload });
           } else {
             throw error;
@@ -180,13 +209,13 @@ export default function CustomerList({
             const fallbackPayload = {
               name: formName.trim(),
               phone: formPhone.trim() || null,
-              primary_crop: formCrop.trim() || null,
+              primary_crop: primaryCropString,
               village: formVillage.trim() || null,
               province: formProvince.trim() || null
             };
             const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
             if (fbErr) throw fbErr;
-            alert("បានបង្កើតអតិថិជនថ្មីជោគជ័យ! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីគាំទ្រជួរឈរថ្មីពេញលេញ)");
+            alert("បានបន្ថែមអតិថិជនថ្មីជោគជ័យ! (ចំណាំ៖ សូមដំណើរការ SQL Script ក្នុង Admin Dashboard ដើម្បីរក្សាទុកដំណាំច្រើនប្រភេទក្នុង Database)");
             if (onCustomerCreated) onCustomerCreated({ ...fbData, ...payload });
           } else {
             throw error;
@@ -232,7 +261,7 @@ export default function CustomerList({
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
             type="text" 
-            placeholder="ស្វែងរកតាមឈ្មោះ, លេខទូរស័ព្ទ, ដំណាំ, ភូមិ, ឃុំ, ស្រុក ឬខេត្ត..." 
+            placeholder="ស្វែងរកតាមឈ្មោះ, លេខទូរស័ព្ទ, ដំណាំ, ពូជ, ភូមិ, ឃុំ, ស្រុក ឬខេត្ត..." 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -261,6 +290,18 @@ export default function CustomerList({
               <option value="ប្រុស">ប្រុស</option>
               <option value="ស្រី">ស្រី</option>
             </select>
+
+            {allCropTypes.length > 2 && (
+              <select 
+                value={filterCrop} 
+                onChange={e => setFilterCrop(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-bold"
+              >
+                {allCropTypes.map((c, i) => (
+                  <option key={i} value={c}>{c === 'All' ? 'គ្រប់ដំណាំ' : c}</option>
+                ))}
+              </select>
+            )}
 
             {/* View Mode Toggle */}
             <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -322,8 +363,8 @@ export default function CustomerList({
                   <th className="py-3 px-3.5 whitespace-nowrap">ឈ្មោះអតិថិជន / ភេទ</th>
                   <th className="py-3 px-3 whitespace-nowrap">ប្រភេទ</th>
                   <th className="py-3 px-3 whitespace-nowrap">លេខទូរស័ព្ទ</th>
-                  <th className="py-3 px-3 whitespace-nowrap">ដំណាំចម្បង</th>
-                  <th className="py-3 px-3 whitespace-nowrap">អាសយដ្ឋាន (ភូមិ, ឃុំ, ស្រុក, ខេត្ត)</th>
+                  <th className="py-3 px-3 whitespace-nowrap">ដំណាំក្នុងចំការ (ពូជ, ផ្ទៃដី, ចំនួនដើម, អាយុ)</th>
+                  <th className="py-3 px-3 whitespace-nowrap">អាសយដ្ឋាន</th>
                   <th className="py-3 px-3 whitespace-nowrap">ទីតាំង GPS</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap sticky right-0 bg-slate-50 shadow-xs">សកម្មភាព</th>
                 </tr>
@@ -332,6 +373,7 @@ export default function CustomerList({
                 {filtered.map(cust => {
                   const hasGPS = cust.latitude && cust.longitude;
                   const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
+                  const crops = parseCrops(cust.crops, cust.primary_crop);
 
                   return (
                     <tr key={cust.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -378,20 +420,45 @@ export default function CustomerList({
                         )}
                       </td>
 
-                      {/* Primary Crop */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        {cust.primary_crop ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-                            <Sprout size={12} className="text-emerald-600 shrink-0" />
-                            <span>{cust.primary_crop}</span>
-                          </span>
+                      {/* Multi-Crop Breakdown (ដំណាំក្នុងចំការ) */}
+                      <td className="py-2.5 px-3 min-w-[220px]">
+                        {crops.length > 0 ? (
+                          <div className="space-y-1">
+                            {crops.map((cr, idx) => (
+                              <div key={idx} className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                                <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50/80 px-2 py-0.2 rounded border border-emerald-200">
+                                  <Sprout size={10} className="text-emerald-600" />
+                                  <span>{cr.crop_type || 'ដំណាំ'}</span>
+                                  {cr.variety && <span className="text-slate-500 font-normal">({cr.variety})</span>}
+                                </span>
+
+                                <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                  {cr.farm_size_ha && (
+                                    <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded">
+                                      {cr.farm_size_ha} ហ.ត
+                                    </span>
+                                  )}
+                                  {cr.plant_count && (
+                                    <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded">
+                                      {parseInt(cr.plant_count, 10).toLocaleString()} ដើម
+                                    </span>
+                                  )}
+                                  {cr.crop_age && (
+                                    <span className="text-slate-400">
+                                      អាយុ {cr.crop_age}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
                       </td>
 
                       {/* Full Address */}
-                      <td className="py-2.5 px-3 max-w-[200px]">
+                      <td className="py-2.5 px-3 max-w-[170px]">
                         <span className="text-slate-700 block truncate" title={fullAddress}>
                           {fullAddress || <span className="text-slate-300">—</span>}
                         </span>
@@ -472,6 +539,7 @@ export default function CustomerList({
           {filtered.map(cust => {
             const hasGPS = cust.latitude && cust.longitude;
             const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
+            const crops = parseCrops(cust.crops, cust.primary_crop);
 
             return (
               <div key={cust.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between">
@@ -492,14 +560,9 @@ export default function CustomerList({
                             {cust.customer_type || 'កសិករ'}
                           </span>
                         </h4>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                          <span>ភេទ៖ {cust.gender || '—'}</span>
-                          {cust.primary_crop && (
-                            <span className="text-emerald-700 font-bold flex items-center gap-0.5">
-                              <Sprout size={11} /> {cust.primary_crop}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          ភេទ៖ {cust.gender || '—'}
+                        </span>
                       </div>
                     </div>
 
@@ -526,6 +589,38 @@ export default function CustomerList({
                       )}
                     </div>
                   </div>
+
+                  {/* Multi-Crops Badge Box */}
+                  {crops.length > 0 && (
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 my-2 space-y-1">
+                      <div className="text-[10px] text-slate-500 font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Sprout size={11} className="text-emerald-600" />
+                          <span>ដំណាំ ({crops.length} មុខ)</span>
+                        </span>
+                        <span>
+                          {crops.reduce((s, c) => s + (parseFloat(c.farm_size_ha) || 0), 0) > 0 && 
+                            `${crops.reduce((s, c) => s + (parseFloat(c.farm_size_ha) || 0), 0).toFixed(1)} ហ.ត`}
+                        </span>
+                      </div>
+                      <div className="space-y-1 pt-1">
+                        {crops.map((cr, i) => (
+                          <div key={i} className="text-[11px] text-slate-700 flex items-center justify-between">
+                            <span className="font-bold text-emerald-900">
+                              • {cr.crop_type} {cr.variety ? `(${cr.variety})` : ''}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              {[
+                                cr.farm_size_ha ? `${cr.farm_size_ha} ហ.ត` : null,
+                                cr.plant_count ? `${cr.plant_count} ដើម` : null,
+                                cr.crop_age ? `${cr.crop_age}` : null
+                              ].filter(Boolean).join(' | ')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-1 text-xs text-slate-600 mt-2">
                     {cust.phone && (
@@ -577,19 +672,19 @@ export default function CustomerList({
       {/* ======================== ADD / EDIT CUSTOMER MODAL ======================== */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full my-6 p-5 shadow-2xl border border-slate-100 space-y-3.5 text-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full my-6 p-5 shadow-2xl border border-slate-100 space-y-3.5 text-xs">
             
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
                 <Edit size={16} className="text-emerald-600" />
-                <span>{editingCustomer ? 'កែប្រែព័ត៌មានអតិថិជន' : 'បន្ថែមអតិថិជនថ្មី'}</span>
+                <span>{editingCustomer ? 'កែប្រែព័ត៌មានអតិថិជន & ដំណាំ' : 'បន្ថែមអតិថិជនថ្មី & ដំណាំ'}</span>
               </h3>
               <button onClick={() => setIsAddModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="space-y-3 max-h-[75vh] overflow-y-auto pr-1">
+            <form onSubmit={handleSaveCustomer} className="space-y-3.5 max-h-[75vh] overflow-y-auto pr-1">
               
               {/* Name, Gender, Type */}
               <div className="grid grid-cols-3 gap-2">
@@ -618,7 +713,7 @@ export default function CustomerList({
                 </div>
               </div>
 
-              {/* Customer Type & Custom Type */}
+              {/* Customer Type & Custom Type & Phone */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">ប្រភេទអតិថិជន</label>
@@ -634,13 +729,13 @@ export default function CustomerList({
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">ដំណាំចម្បង</label>
+                  <label className="font-bold text-slate-700 block mb-1">លេខទូរស័ព្ទ</label>
                   <input 
                     type="text" 
-                    value={formCrop} 
-                    onChange={e => setFormCrop(e.target.value)} 
-                    placeholder="ឧ. ស្វាយចន្ទី, ស្រូវ..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800"
+                    value={formPhone} 
+                    onChange={e => setFormPhone(e.target.value)} 
+                    placeholder="012 345 678"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono"
                   />
                 </div>
               </div>
@@ -658,17 +753,12 @@ export default function CustomerList({
                 </div>
               )}
 
-              {/* Phone */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">លេខទូរស័ព្ទ</label>
-                <input 
-                  type="text" 
-                  value={formPhone} 
-                  onChange={e => setFormPhone(e.target.value)} 
-                  placeholder="012 345 678"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono"
-                />
-              </div>
+              {/* ===================== CROPS EDITOR (ដំណាំច្រើនប្រភេទក្នុងចំការ) ===================== */}
+              <CropsEditor 
+                crops={formCrops} 
+                onChange={setFormCrops}
+                title="ព័ត៌មានដំណាំក្នុងចំការ"
+              />
 
               {/* Address Details: Village, Commune, District, Province */}
               <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">

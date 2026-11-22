@@ -1,4 +1,19 @@
-// Staff utilities & date calculation functions
+// Staff utilities, crop helpers & date calculation functions
+
+export const CROP_SUGGESTIONS = [
+  'ស្វាយចន្ទី', 'ទុរេន', 'ស្រូវ', 'ដំឡូងមី', 'ពោត', 
+  'កៅស៊ូ', 'ស្វាយ', 'ម្រេច', 'ក្រូចពោធិ៍សាត់', 'ចេក', 
+  'មៀន/តាង៉ែន', 'កាហ្វេ', 'បន្លែចម្រុះ'
+];
+
+export const VARIETY_SUGGESTIONS = {
+  'ស្វាយចន្ទី': ['M23', 'M10', 'M1', 'H09', 'សំបូរ', 'ម៉ាឡេ'],
+  'ទុរេន': ['ម៊ូសាងឃីង (Musang King)', 'ប្ល៊ែកថន (Black Thorn)', 'ម៉ាន់ថង (Monthong)', 'កានយ៉ាវ (Kanyao)', 'ឱខាក់'],
+  'ស្រូវ': ['ផ្ការំដួល', 'សែនក្រអូប', 'អ៊ីអ៊ែរ (IR)', '៥០៤', 'គា៥'],
+  'ដំឡូងមី': ['គីឡូ៩', 'គីឡូ៨', 'ពូជថៃ ៨១', 'ពូជស្រុក'],
+  'ស្វាយ': ['កែវរមៀត', 'កែវចិន', 'អូកុង'],
+  'ម្រេច': ['ម្រេចកំពត', 'ម្រេចពូជខ្មែរ']
+};
 
 export const SQL_SCHEMA_SCRIPT = `-- ==========================================================
 -- 1. បន្ថែមជួរឈរ (Columns) ក្នុងតារាង customers
@@ -9,10 +24,17 @@ alter table if exists customers
   add column if not exists commune text,
   add column if not exists district text,
   add column if not exists latitude double precision,
-  add column if not exists longitude double precision;
+  add column if not exists longitude double precision,
+  add column if not exists crops jsonb default '[]'::jsonb;
 
 -- ==========================================================
--- 2. បង្កើតតារាងបុគ្គលិក (Staff Table)
+-- 2. បន្ថែមជួរឈរ crops ក្នុងតារាង field_visits
+-- ==========================================================
+alter table if exists field_visits 
+  add column if not exists crops jsonb default '[]'::jsonb;
+
+-- ==========================================================
+-- 3. បង្កើតតារាងបុគ្គលិក (Staff Table)
 -- ==========================================================
 create table if not exists staff (
   id uuid default gen_random_uuid() primary key,
@@ -26,7 +48,7 @@ create table if not exists staff (
   username text unique not null,
   password text not null,
   status text default 'សកម្ម',
-  permissions jsonb default '{"can_manage_staff": false, "can_edit_customer": true, "can_delete_customer": false, "can_delete_visit": false}'::jsonb,
+  permissions jsonb default '{"can_manage_staff": false, "can_edit_customer": true, "can_delete_customer": false, "can_delete_visit": false, "can_export_reports": true}'::jsonb,
   created_at timestamp with time zone default now()
 );
 
@@ -49,7 +71,7 @@ values (
   'admin',
   'admin123',
   'សកម្ម',
-  '{"can_manage_staff": true, "can_edit_customer": true, "can_delete_customer": true, "can_delete_visit": true}'::jsonb
+  '{"can_manage_staff": true, "can_edit_customer": true, "can_delete_customer": true, "can_delete_visit": true, "can_export_reports": true}'::jsonb
 ) on conflict (username) do nothing;`;
 
 /**
@@ -117,4 +139,29 @@ export function toInputDateFormat(dateStr) {
   } catch {
     return '';
   }
+}
+
+/**
+ * Normalize and parse crops list from DB or JSON
+ */
+export function parseCrops(cropsData, fallbackCrop = '', fallbackSize = null) {
+  if (Array.isArray(cropsData) && cropsData.length > 0) {
+    return cropsData;
+  }
+  if (typeof cropsData === 'string') {
+    try {
+      const parsed = JSON.parse(cropsData);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+  if (fallbackCrop) {
+    return [{
+      crop_type: fallbackCrop,
+      variety: '',
+      farm_size_ha: fallbackSize || null,
+      plant_count: null,
+      crop_age: ''
+    }];
+  }
+  return [];
 }
