@@ -16,6 +16,7 @@ export default function App() {
 
   // Modals
   const [isNewVisitOpen, setIsNewVisitOpen] = useState(false);
+  const [visitToEdit, setVisitToEdit] = useState(null);
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
 
   useEffect(() => {
@@ -48,15 +49,52 @@ export default function App() {
     if (data) setCustomers(data);
   };
 
-  const handleVisitCreated = (newVisit) => {
+  const handleOpenNewVisit = () => {
+    setVisitToEdit(null);
+    setIsNewVisitOpen(true);
+  };
+
+  const handleEditVisit = (visit) => {
+    setVisitToEdit(visit);
+    setIsNewVisitOpen(true);
+  };
+
+  const handleDeleteVisit = async (visit) => {
+    const custName = visit.customers?.name || 'ម្ចាស់ចំការ';
+    if (!window.confirm(`តើអ្នកពិតជាចង់លុបកំណត់ត្រាចុះចំការរបស់ "${custName}" មែនទេ?`)) return;
+
+    try {
+      const { error } = await supabase.from('field_visits').delete().eq('id', visit.id);
+      if (error) throw error;
+
+      alert("✅ បានលុបកំណត់ត្រាចុះចំការរួចរាល់!");
+      fetchVisits();
+      if (selectedVisitDetail?.id === visit.id) setSelectedVisitDetail(null);
+    } catch (err) {
+      alert("❌ មិនអាចលុបបានទេ: " + err.message);
+    }
+  };
+
+  const handleVisitCreatedOrUpdated = () => {
     fetchVisits();
+    setVisitToEdit(null);
   };
 
   const handleCustomerCreated = (newCust) => {
     setCustomers(prev => [...prev, newCust].sort((a,b) => (a.name||'').localeCompare(b.name||'')));
   };
 
+  const handleCustomerUpdated = (updatedCust) => {
+    setCustomers(prev => prev.map(c => c.id === updatedCust.id ? updatedCust : c));
+    fetchVisits(); // refresh visit list to reflect updated customer name/phone
+  };
+
+  const handleCustomerDeleted = (deletedId) => {
+    setCustomers(prev => prev.filter(c => c.id !== deletedId));
+  };
+
   const handleSelectCustomerForVisit = (cust) => {
+    setVisitToEdit(null);
     setIsNewVisitOpen(true);
   };
 
@@ -88,7 +126,7 @@ export default function App() {
             </button>
 
             <button 
-              onClick={() => setIsNewVisitOpen(true)}
+              onClick={handleOpenNewVisit}
               className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
             >
               <Plus size={16} />
@@ -119,7 +157,7 @@ export default function App() {
             }`}
           >
             <Map size={14} />
-            <span>ផែនទីចំការ</span>
+            <span>ផែនទីចំការ (Heatmap)</span>
           </button>
 
           <button 
@@ -147,7 +185,9 @@ export default function App() {
               <VisitList 
                 visits={visits} 
                 onSelectVisit={(v) => setSelectedVisitDetail(v)}
-                onOpenNewVisit={() => setIsNewVisitOpen(true)}
+                onEditVisit={handleEditVisit}
+                onDeleteVisit={handleDeleteVisit}
+                onOpenNewVisit={handleOpenNewVisit}
               />
             )}
 
@@ -161,8 +201,10 @@ export default function App() {
             {activeTab === 'customers' && (
               <CustomerList 
                 customers={customers} 
-                onOpenNewCustomer={() => setIsNewVisitOpen(true)}
+                onOpenNewCustomer={handleOpenNewVisit}
                 onSelectCustomerForVisit={handleSelectCustomerForVisit}
+                onCustomerUpdated={handleCustomerUpdated}
+                onCustomerDeleted={handleCustomerDeleted}
               />
             )}
           </>
@@ -205,8 +247,12 @@ export default function App() {
       {/* MODALS */}
       <NewVisitModal 
         isOpen={isNewVisitOpen}
-        onClose={() => setIsNewVisitOpen(false)}
-        onVisitCreated={handleVisitCreated}
+        visitToEdit={visitToEdit}
+        onClose={() => {
+          setIsNewVisitOpen(false);
+          setVisitToEdit(null);
+        }}
+        onVisitCreated={handleVisitCreatedOrUpdated}
         customers={customers}
         onCustomerCreated={handleCustomerCreated}
       />

@@ -4,7 +4,7 @@ import { MapPin, Camera, X, Loader2, UserPlus, CheckCircle2 } from 'lucide-react
 
 const CROP_SUGGESTIONS = ['ស្វាយចន្ទី', 'ស្រូវ', 'ទុរេន', 'ដំឡូងមី', 'ពោត', 'ស្វាយ', 'ម្រេច', 'កៅស៊ូ', 'បន្លែចម្រុះ'];
 
-export default function NewVisitModal({ isOpen, onClose, onVisitCreated, customers, onCustomerCreated }) {
+export default function NewVisitModal({ isOpen, onClose, onVisitCreated, customers, onCustomerCreated, visitToEdit }) {
   const [staffName, setStaffName] = useState(() => localStorage.getItem('sremeas_staff_name') || '');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -31,16 +31,52 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
   const [notes, setNotes] = useState('');
 
   // Photos
+  const [existingPhotos, setExistingPhotos] = useState([]);
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoPreviews, setPhotoPreviews] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-fetch GPS on modal open if not set
+  // Initialize form when opened or when visitToEdit changes
   useEffect(() => {
-    if (isOpen && !latitude) {
+    if (!isOpen) return;
+
+    if (visitToEdit) {
+      setStaffName(visitToEdit.staff_name || '');
+      setSelectedCustomerId(visitToEdit.customer_id || '');
+      setLatitude(visitToEdit.latitude || null);
+      setLongitude(visitToEdit.longitude || null);
+      setLocationAddress(visitToEdit.location_address || '');
+      setCropType(visitToEdit.crop_type || 'ស្វាយចន្ទី');
+      setFarmSizeHa(visitToEdit.farm_size_ha != null ? visitToEdit.farm_size_ha.toString() : '');
+      setCropStatus(visitToEdit.crop_status || 'ល្អ');
+      setIssuesIdentified(visitToEdit.issues_identified || '');
+      setProductsRecommended(visitToEdit.products_recommended || '');
+      setFollowUpDate(visitToEdit.follow_up_date || '');
+      setNotes(visitToEdit.notes || '');
+      setExistingPhotos(visitToEdit.photos || []);
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
+      setShowAddCustomer(false);
+    } else {
+      setStaffName(localStorage.getItem('sremeas_staff_name') || '');
+      setSelectedCustomerId('');
+      setLatitude(null);
+      setLongitude(null);
+      setLocationAddress('');
+      setCropType('ស្វាយចន្ទី');
+      setFarmSizeHa('');
+      setCropStatus('ល្អ');
+      setIssuesIdentified('');
+      setProductsRecommended('');
+      setFollowUpDate('');
+      setNotes('');
+      setExistingPhotos([]);
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
+      setShowAddCustomer(false);
       handleGetGPS();
     }
-  }, [isOpen]);
+  }, [isOpen, visitToEdit]);
 
   const handleGetGPS = () => {
     if (!navigator.geolocation) {
@@ -71,9 +107,13 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
     setPhotoPreviews(prev => [...prev, ...previews]);
   };
 
-  const handleRemovePhoto = (index) => {
+  const handleRemoveNewPhoto = (index) => {
     setPhotoFiles(prev => prev.filter((_, i) => i !== index));
     setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveExistingPhoto = (index) => {
+    setExistingPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCreateCustomer = async (e) => {
@@ -109,7 +149,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
     localStorage.setItem('sremeas_staff_name', staffName.trim());
 
     try {
-      // 1. Upload photos to Supabase Storage
+      // 1. Upload new photos to Supabase Storage
       const uploadedUrls = [];
       for (const file of photoFiles) {
         const fileExt = file.name.split('.').pop();
@@ -125,7 +165,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
         }
       }
 
-      // 2. Insert field_visit
+      const allPhotos = [...existingPhotos, ...uploadedUrls];
+
+      // 2. Insert or Update field_visit
       const payload = {
         staff_name: staffName.trim(),
         customer_id: selectedCustomerId,
@@ -138,15 +180,22 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
         issues_identified: issuesIdentified.trim() || null,
         products_recommended: productsRecommended.trim() || null,
         follow_up_date: followUpDate || null,
-        photos: uploadedUrls,
+        photos: allPhotos,
         notes: notes.trim() || null
       };
 
-      const { data, error } = await supabase.from('field_visits').insert([payload]).select().single();
-      if (error) throw error;
+      if (visitToEdit) {
+        const { data, error } = await supabase.from('field_visits').update(payload).eq('id', visitToEdit.id).select().single();
+        if (error) throw error;
+        alert("✅ បានកែប្រែកំណត់ត្រាជោគជ័យ!");
+        onVisitCreated(data);
+      } else {
+        const { data, error } = await supabase.from('field_visits').insert([payload]).select().single();
+        if (error) throw error;
+        alert("🎉 កត់ត្រាការចុះចំការបានជោគជ័យ!");
+        onVisitCreated(data);
+      }
 
-      alert("🎉 កត់ត្រាការចុះចំការបានជោគជ័យ!");
-      onVisitCreated(data);
       onClose();
     } catch (err) {
       alert("❌ មានបញ្ហាក្នុងការរក្សាទុក: " + err.message);
@@ -162,12 +211,14 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       <div className="relative w-full max-w-lg my-8 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-emerald-600 text-white">
+        <div className={`flex items-center justify-between px-5 py-4 text-white ${visitToEdit ? 'bg-slate-900' : 'bg-emerald-600'}`}>
           <div className="flex items-center gap-2">
-            <span className="text-xl">🌾</span>
-            <h3 className="font-bold text-base">កត់ត្រាការចុះចំការថ្មី</h3>
+            <span className="text-xl">{visitToEdit ? '⚙️' : '🌾'}</span>
+            <h3 className="font-bold text-base">
+              {visitToEdit ? 'កែប្រែកំណត់ត្រាចុះចំការ' : 'កត់ត្រាការចុះចំការថ្មី'}
+            </h3>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-emerald-700 text-white/80 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-black/20 text-white/80 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -192,14 +243,16 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <div className="flex items-center justify-between mb-2">
               <label className="font-bold text-slate-700">🧑‍🌾 អតិថិជន / ម្ចាស់ចំការ *</label>
-              <button 
-                type="button" 
-                onClick={() => setShowAddCustomer(!showAddCustomer)} 
-                className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 hover:underline"
-              >
-                <UserPlus size={14} />
-                {showAddCustomer ? 'ជ្រើសរើសដែលមានស្រាប់' : '+ បន្ថែមថ្មី'}
-              </button>
+              {!visitToEdit && (
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddCustomer(!showAddCustomer)} 
+                  className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 hover:underline"
+                >
+                  <UserPlus size={14} />
+                  {showAddCustomer ? 'ជ្រើសរើសដែលមានស្រាប់' : '+ បន្ថែមថ្មី'}
+                </button>
+              )}
             </div>
 
             {showAddCustomer ? (
@@ -257,8 +310,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                 onChange={e => {
                   setSelectedCustomerId(e.target.value);
                   const cust = customers.find(c => c.id === e.target.value);
-                  if (cust?.primary_crop) setCropType(cust.primary_crop);
-                  if (cust?.village || cust?.province) setLocationAddress(`${cust.village || ''} ${cust.province || ''}`.trim());
+                  if (cust?.primary_crop && !visitToEdit) setCropType(cust.primary_crop);
+                  if ((cust?.village || cust?.province) && !locationAddress) {
+                    setLocationAddress(`${cust.village || ''} ${cust.province || ''}`.trim());
+                  }
                 }}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800"
               >
@@ -284,7 +339,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                 disabled={gettingLocation}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors"
               >
-                {gettingLocation ? <Loader2 size={12} className="animate-spin" /> : '📍 ចាប់យក GPS'}
+                {gettingLocation ? <Loader2 size={12} className="animate-spin" /> : '📍 ចាប់យក GPS ឡើងវិញ'}
               </button>
             </div>
 
@@ -388,13 +443,36 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             />
           </div>
 
-          {/* Photos Upload */}
+          {/* Photos Upload & Existing Photos */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">📸 ថតរូប ឬ ជ្រើសរើសរូបភាពចំការ</label>
+            <label className="block font-bold text-slate-700 mb-1">📸 រូបភាពចំការ</label>
+            
+            {/* Existing Photos (if editing) */}
+            {existingPhotos.length > 0 && (
+              <div className="mb-2">
+                <span className="text-[10px] text-slate-500 font-bold block mb-1">រូបភាពដែលមានស្រាប់៖</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {existingPhotos.map((url, idx) => (
+                    <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-square group">
+                      <img src={url} alt={`Existing ${idx}`} className="w-full h-full object-cover" />
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveExistingPhoto(idx)} 
+                        title="លុបរូបភាពនេះ"
+                        className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full shadow hover:bg-rose-700 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <label className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 rounded-xl p-3 cursor-pointer text-emerald-700 font-bold text-xs transition-colors">
                 <Camera size={18} />
-                <span>ថតរូប / ជ្រើសរើសរូបភាព</span>
+                <span>+ ថែមរូបភាពថ្មី</span>
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -405,7 +483,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
               </label>
             </div>
 
-            {/* Photo Previews */}
+            {/* New Photo Previews */}
             {photoPreviews.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mt-2">
                 {photoPreviews.map((src, idx) => (
@@ -413,7 +491,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                     <img src={src} alt="Preview" className="w-full h-full object-cover" />
                     <button 
                       type="button" 
-                      onClick={() => handleRemovePhoto(idx)} 
+                      onClick={() => handleRemoveNewPhoto(idx)} 
                       className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full shadow hover:bg-rose-700 transition-colors"
                     >
                       <X size={12} />
@@ -453,17 +531,19 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
               type="button" 
               onClick={handleSubmitVisit} 
               disabled={isSubmitting}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+              className={`w-full text-white font-bold py-2.5 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
+                visitToEdit ? 'bg-slate-900 hover:bg-slate-800' : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  <span>កំពុងរក្សាទុក និង Upload រូបភាព...</span>
+                  <span>កំពុងរក្សាទុក...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 size={16} />
-                  <span>💾 រក្សាទុកកំណត់ត្រាចុះចំការ</span>
+                  <span>{visitToEdit ? '💾 រក្សាទុកការកែប្រែ' : '💾 រក្សាទុកកំណត់ត្រាចុះចំការ'}</span>
                 </>
               )}
             </button>
