@@ -4,9 +4,10 @@ import {
   Users, UserPlus, Shield, Key, Phone, Mail, Calendar, 
   MapPin, CheckCircle2, XCircle, Edit, Trash2, Search, 
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
-  Building, UserCheck, RefreshCw, X
+  Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database
 } from 'lucide-react';
 import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT } from '../staffUtils';
+import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
 
 // Default initial admin in case Supabase table is not yet migrated
 const DEFAULT_INITIAL_ADMIN = {
@@ -31,13 +32,17 @@ const DEFAULT_INITIAL_ADMIN = {
   created_at: new Date().toISOString()
 };
 
-export default function AdminDashboard({ currentUser, onStaffListChanged }) {
+export default function AdminDashboard({ currentUser, onStaffListChanged, visits = [], onRefreshVisits }) {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
+
+  // Photo retention & storage cleanup state
+  const [isCleaningPhotos, setIsCleaningPhotos] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState('');
 
   // Schema notice & SQL copy state
   const [isTableMissing, setIsTableMissing] = useState(false);
@@ -293,6 +298,36 @@ export default function AdminDashboard({ currentUser, onStaffListChanged }) {
 
   const branches = ['All', ...Array.from(new Set(staffList.map(s => s.branch).filter(Boolean)))];
 
+  // 7-day photo retention & cleanup statistics
+  const photoStats = getPhotoRetentionStats(visits, 7);
+
+  const handleCleanExpiredPhotos = async () => {
+    if (photoStats.expiredPhotosCount === 0 && photoStats.visitsWithExpiredPhotos === 0) {
+      alert("បច្ចុប្បន្នគ្មានរូបភាពចាស់លើសពី ៧ថ្ងៃ ដែលត្រូវសម្អាតទេ!");
+      return;
+    }
+
+    if (!window.confirm(`តើអ្នកពិតជាចង់សម្អាតរូបភាពចាស់ៗទាំងអស់ដែលលើសពី ៧ថ្ងៃ (ចំនួន ${photoStats.expiredPhotosCount} សន្លឹក ក្នុង ${photoStats.visitsWithExpiredPhotos} កំណត់ត្រា) ចេញពី Cloud Storage និង Database មែនទេ?`)) {
+      return;
+    }
+
+    setIsCleaningPhotos(true);
+    setCleanupMessage('');
+    try {
+      const res = await cleanupExpiredVisitPhotos(supabase, 7);
+      if (res.success) {
+        setCleanupMessage(`បានសម្អាតដោយជោគជ័យ! រូបភាពចំនួន ${res.photosDeleted} សន្លឹក ត្រូវបានលុបចេញពី Cloud Storage។`);
+        if (onRefreshVisits) onRefreshVisits();
+      } else {
+        alert("ការសម្អាតមិនបានជោគជ័យ: " + res.error);
+      }
+    } catch (err) {
+      alert("កំហុសក្នុងការសម្អាត: " + err.message);
+    } finally {
+      setIsCleaningPhotos(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
 
@@ -368,6 +403,87 @@ export default function AdminDashboard({ currentUser, onStaffListChanged }) {
           </div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5">តាមបណ្តាខេត្ត</div>
         </div>
+      </div>
+
+      {/* Storage & Photo Retention Card (7-Day Policy) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-700 border border-emerald-100 shrink-0">
+              <Camera size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">
+                  ការគ្រប់គ្រងទំហំផ្ទុក & រូបភាព (គោលការណ៍រក្សាទុក ៧ថ្ងៃ)
+                </h3>
+                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                  ស្វ័យប្រវត្តិ
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                រូបភាពពេល Upload ត្រូវបានបន្ថយទំហំស្វ័យប្រវត្តិតាម Canvas (សន្សំទំហំ ~95%) ហើយរូបភាពចាស់លើសពី ៧ថ្ងៃ នឹងត្រូវលុបចេញពី Cloud Storage ដើម្បីសន្សំទំហំផ្ទុក។
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleCleanExpiredPhotos}
+              disabled={isCleaningPhotos}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                photoStats.expiredPhotosCount > 0 
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              } disabled:opacity-50`}
+            >
+              {isCleaningPhotos ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              <span>
+                {isCleaningPhotos 
+                  ? 'កំពុងសម្អាត...' 
+                  : photoStats.expiredPhotosCount > 0 
+                    ? `សម្អាតរូបភាពផុតកំណត់ (${photoStats.expiredPhotosCount})` 
+                    : 'សម្អាតរូបភាពលើសពី ៧ថ្ងៃ'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Retention Statistics Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <div className="text-[10px] text-slate-500 font-medium">រូបភាពសកម្ម (&le; ៧ថ្ងៃ)</div>
+            <div className="text-sm font-bold text-emerald-700 mt-0.5">
+              {photoStats.activePhotosCount} សន្លឹក ({photoStats.visitsWithActivePhotos} ចំការ)
+            </div>
+          </div>
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <div className="text-[10px] text-slate-500 font-medium">រូបភាពផុតកំណត់ (&gt; ៧ថ្ងៃ)</div>
+            <div className={`text-sm font-bold mt-0.5 ${photoStats.expiredPhotosCount > 0 ? 'text-rose-600 font-black' : 'text-slate-700'}`}>
+              {photoStats.expiredPhotosCount} សន្លឹក ({photoStats.visitsWithExpiredPhotos} ចំការ)
+            </div>
+          </div>
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <div className="text-[10px] text-slate-500 font-medium">ការបន្ថយទំហំពេល Upload</div>
+            <div className="text-sm font-bold text-emerald-700 mt-0.5">JPEG 72% / 1280px</div>
+          </div>
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <div className="text-[10px] text-slate-500 font-medium">ដំណើរការសម្អាតស្វ័យប្រវត្តិ</div>
+            <div className="text-sm font-bold text-emerald-700 mt-0.5">រៀងរាល់ 12 ម៉ោង</div>
+          </div>
+        </div>
+
+        {cleanupMessage && (
+          <div className="mt-2.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-1.5">
+            <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+            <span>{cleanupMessage}</span>
+          </div>
+        )}
       </div>
 
       {/* Top Search & Filter Bar */}

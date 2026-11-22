@@ -4,11 +4,12 @@ import {
   MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, 
   User, Users, Save, Navigation, Sprout, Activity, 
   AlertCircle, Package, Calendar, FileText, Edit, ExternalLink,
-  Building, UserCheck, Plus, Check, RefreshCw
+  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
 import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
+import { compressMultipleImages, formatFileSize } from '../imageUtils';
 
 export default function NewVisitModal({ 
   isOpen, 
@@ -103,6 +104,8 @@ export default function NewVisitModal({
   const [existingPhotos, setExistingPhotos] = useState([]);
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoPreviews, setPhotoPreviews] = useState([]);
+  const [photoMeta, setPhotoMeta] = useState([]);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load staff list if not provided
@@ -181,6 +184,8 @@ export default function NewVisitModal({
       setExistingPhotos([]);
       setPhotoFiles([]);
       setPhotoPreviews([]);
+      setPhotoMeta([]);
+      setIsCompressing(false);
       setShowAddCustomer(false);
       setNewCustPhone('');
       setNewCustPhoneDuplicate(null);
@@ -275,18 +280,48 @@ export default function NewVisitModal({
     setTeamMembers(prev => prev.filter(m => m !== name));
   };
 
-  const handlePhotoSelect = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+  const handlePhotoSelect = async (e) => {
+    const rawFiles = Array.from(e.target.files);
+    if (!rawFiles.length) return;
 
-    setPhotoFiles(prev => [...prev, ...files]);
-    const previews = files.map(file => URL.createObjectURL(file));
-    setPhotoPreviews(prev => [...prev, ...previews]);
+    // Reset input to allow selecting same file again if removed
+    e.target.value = '';
+
+    setIsCompressing(true);
+    try {
+      // Compress images client-side before upload: max 1280px, JPEG quality 0.72
+      const results = await compressMultipleImages(rawFiles, {
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.72
+      });
+
+      const newFiles = results.map(r => r.file);
+      const newPreviews = results.map(r => r.previewUrl);
+      const newMeta = results.map(r => ({
+        originalSize: r.originalSize,
+        compressedSize: r.compressedSize,
+        savingsPercent: r.savingsPercent
+      }));
+
+      setPhotoFiles(prev => [...prev, ...newFiles]);
+      setPhotoPreviews(prev => [...prev, ...newPreviews]);
+      setPhotoMeta(prev => [...prev, ...newMeta]);
+    } catch (err) {
+      console.error("Image compression error:", err);
+      // Fallback gracefully to raw files
+      setPhotoFiles(prev => [...prev, ...rawFiles]);
+      const previews = rawFiles.map(file => URL.createObjectURL(file));
+      setPhotoPreviews(prev => [...prev, ...previews]);
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   const handleRemoveNewPhoto = (index) => {
     setPhotoFiles(prev => prev.filter((_, i) => i !== index));
     setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+    setPhotoMeta(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveExistingPhoto = (index) => {
@@ -1019,10 +1054,16 @@ export default function NewVisitModal({
 
           {/* Photos Upload & Existing Photos */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-              <Camera size={13} className="text-slate-500" />
-              <span>រូបភាពចំការ</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-bold text-slate-700 flex items-center gap-1 text-xs">
+                <Camera size={13} className="text-slate-500" />
+                <span>រូបភាពចំការ</span>
+              </label>
+              <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 font-medium">
+                <Clock size={10} />
+                <span>រក្សាទុក ៧ថ្ងៃ</span>
+              </span>
+            </div>
             
             {/* Existing Photos (if editing) */}
             {existingPhotos.length > 0 && (
@@ -1046,37 +1087,72 @@ export default function NewVisitModal({
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <label className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 rounded-xl p-3 cursor-pointer text-emerald-700 font-bold text-xs transition-colors">
-                <Camera size={18} />
-                <span>+ ថែមរូបភាពថ្មី</span>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  multiple 
-                  onChange={handlePhotoSelect} 
-                  className="hidden" 
-                />
-              </label>
-            </div>
+            {/* Total Compression Savings Banner */}
+            {photoFiles.length > 0 && photoMeta.length > 0 && (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 text-[11px] text-emerald-800 font-semibold mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-emerald-600 shrink-0" />
+                  <span>
+                    បន្ថយទំហំរួច៖ {formatFileSize(photoMeta.reduce((s, m) => s + (m.originalSize || 0), 0))} មកសល់ {formatFileSize(photoMeta.reduce((s, m) => s + (m.compressedSize || 0), 0))}
+                  </span>
+                </div>
+                <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0">
+                  សន្សំ -{Math.round(((photoMeta.reduce((s, m) => s + (m.originalSize || 0), 0) - photoMeta.reduce((s, m) => s + (m.compressedSize || 0), 0)) / (photoMeta.reduce((s, m) => s + (m.originalSize || 0), 0) || 1)) * 100)}%
+                </span>
+              </div>
+            )}
+
+            {isCompressing ? (
+              <div className="flex items-center justify-center gap-2 border-2 border-emerald-300 bg-emerald-50 rounded-xl p-3 text-emerald-800 font-bold text-xs animate-pulse">
+                <RefreshCw size={16} className="animate-spin text-emerald-600" />
+                <span>កំពុងបន្ថយទំហំ និងគុណភាពរូបភាព (Compressing)...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 rounded-xl p-3 cursor-pointer text-emerald-700 font-bold text-xs transition-colors">
+                  <Camera size={18} />
+                  <span>+ ថែមរូបភាពថ្មី (បន្ថយទំហំស្វ័យប្រវត្តិ)</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    onChange={handlePhotoSelect} 
+                    className="hidden" 
+                  />
+                </label>
+              </div>
+            )}
 
             {/* New Photo Previews */}
             {photoPreviews.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mt-2">
-                {photoPreviews.map((src, idx) => (
-                  <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-square group">
-                    <img src={src} alt="Preview" className="w-full h-full object-cover" />
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveNewPhoto(idx)} 
-                      className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full shadow hover:bg-rose-700 transition-colors"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                {photoPreviews.map((src, idx) => {
+                  const meta = photoMeta[idx];
+                  return (
+                    <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-square group">
+                      <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveNewPhoto(idx)} 
+                        className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full shadow hover:bg-rose-700 transition-colors z-10"
+                      >
+                        <X size={12} />
+                      </button>
+                      {meta && (
+                        <div className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[9px] px-1 py-0.5 text-center font-mono truncate">
+                          {formatFileSize(meta.compressedSize)} (-{meta.savingsPercent}%)
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
+
+            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+              <Clock size={12} className="text-amber-600 shrink-0" />
+              <span>រូបភាពត្រូវបានបន្ថយទំហំស្វ័យប្រវត្តិដើម្បី Upload លឿន និងលុបចេញពីប្រព័ន្ធក្រោយរយៈពេល ៧ថ្ងៃ។</span>
+            </div>
           </div>
 
           {/* Follow-up Date & Notes */}

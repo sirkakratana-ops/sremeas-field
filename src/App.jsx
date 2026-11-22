@@ -10,6 +10,7 @@ import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
 import { getStaffList } from './staffUtils';
+import { deleteVisitPhotosFromStorage, cleanupExpiredVisitPhotos } from './imageUtils';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -35,8 +36,27 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       fetchAll();
+      triggerAutoCleanup();
     }
   }, [currentUser]);
+
+  // Automatic background photo cleanup: deletes photos > 7 days old (throttled to once every 12 hours)
+  const triggerAutoCleanup = async () => {
+    try {
+      const lastCheck = localStorage.getItem('sremeas_last_photo_cleanup');
+      const now = Date.now();
+      if (!lastCheck || (now - parseInt(lastCheck, 10)) > 43200000) {
+        const res = await cleanupExpiredVisitPhotos(supabase, 7);
+        localStorage.setItem('sremeas_last_photo_cleanup', now.toString());
+        if (res.photosDeleted > 0) {
+          console.log(`[AutoCleanup] Cleaned up ${res.photosDeleted} photos from ${res.visitsCleaned} visits (> 7 days).`);
+          fetchVisits();
+        }
+      }
+    } catch (e) {
+      console.warn("Auto cleanup notice:", e);
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -101,6 +121,11 @@ export default function App() {
     if (!window.confirm(`តើអ្នកពិតជាចង់លុបកំណត់ត្រាចុះចំការរបស់ "${custName}" មែនទេ?`)) return;
 
     try {
+      // Clean up physical photos from storage if any
+      if (Array.isArray(visit.photos) && visit.photos.length > 0) {
+        await deleteVisitPhotosFromStorage(supabase, visit.photos);
+      }
+
       const { error } = await supabase.from('field_visits').delete().eq('id', visit.id);
       if (error) throw error;
 
@@ -301,6 +326,8 @@ export default function App() {
             {activeTab === 'admin' && isAdmin && (
               <AdminDashboard 
                 currentUser={currentUser}
+                visits={visits}
+                onRefreshVisits={fetchVisits}
                 onStaffListChanged={() => {
                   fetchVisits();
                   fetchStaff();

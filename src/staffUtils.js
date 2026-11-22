@@ -90,7 +90,27 @@ values (
   'admin123',
   'សកម្ម',
   '{"can_manage_staff": true, "can_edit_customer": true, "can_delete_customer": true, "can_delete_visit": true, "can_export_reports": true}'::jsonb
-) on conflict (username) do nothing;`;
+) on conflict (username) do nothing;
+
+-- ==========================================================
+-- 4. គោលការណ៍លុបរូបភាពចាស់លើសពី ៧ថ្ងៃ ដោយស្វ័យប្រវត្តិ (Storage & Data Cleanup)
+-- ==========================================================
+create or replace function cleanup_old_visit_photos()
+returns void as $$
+begin
+  -- លុប references ក្នុង field_visits
+  update field_visits
+  set photos = '[]'::jsonb
+  where (visit_date < now() - interval '7 days' or created_at < now() - interval '7 days')
+    and photos is not null
+    and jsonb_array_length(photos) > 0;
+
+  -- លុប Object រូបភាពក្នុង Supabase Storage
+  delete from storage.objects
+  where bucket_id = 'visit-photos'
+    and created_at < now() - interval '7 days';
+end;
+$$ language plpgsql security definer;`;
 
 /**
  * Calculate age automatically from Date of Birth (YYYY-MM-DD or DD-MM-YYYY)

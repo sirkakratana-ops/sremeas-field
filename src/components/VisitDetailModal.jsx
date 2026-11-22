@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { 
   X, MapPin, Calendar, User, Sprout, AlertTriangle, 
   PackageCheck, FileText, Phone, ExternalLink, Image,
-  Building, Users, UserCheck, Send, Copy, Check
+  Building, Users, UserCheck, Send, Copy, Check, Clock
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 import { copyVisitReportToClipboard } from '../telegramUtils';
+import { isVisitPhotoExpired } from '../imageUtils';
 import ShareVisitModal from './ShareVisitModal';
 
 export default function VisitDetailModal({ visit, onClose }) {
@@ -249,12 +250,18 @@ export default function VisitDetailModal({ visit, onClose }) {
           )}
 
           {/* Photos Gallery */}
-          {visit.photos && visit.photos.length > 0 && (
+          {visit.photos && visit.photos.length > 0 ? (
             <div>
-              <span className="font-bold text-slate-700 flex items-center gap-1 mb-2">
-                <Image size={14} className="text-slate-500" />
-                <span>រូបភាពជាក់ស្តែង ({visit.photos.length} សន្លឹក)</span>
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-slate-700 flex items-center gap-1">
+                  <Image size={14} className="text-slate-500" />
+                  <span>រូបភាពជាក់ស្តែង ({visit.photos.length} សន្លឹក)</span>
+                </span>
+                <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 font-medium">
+                  <Clock size={10} />
+                  <span>រក្សាទុក ៧ថ្ងៃ</span>
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {visit.photos.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-slate-200 aspect-video group">
@@ -263,6 +270,13 @@ export default function VisitDetailModal({ visit, onClose }) {
                 ))}
               </div>
             </div>
+          ) : (
+            isVisitPhotoExpired(visit.visit_date || visit.created_at, 7) && (
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <Clock size={13} className="text-amber-600 shrink-0" />
+                <span>រូបភាពត្រូវបានសម្អាតចេញពីប្រព័ន្ធដោយស្វ័យប្រវត្តិតាមគោលការណ៍រក្សាទុករយៈពេល ៧ថ្ងៃ។</span>
+              </div>
+            )
           )}
 
         </div>
