@@ -239,3 +239,97 @@ export async function getStaffList(supabaseClient) {
     }
   ];
 }
+
+/**
+ * Normalize phone number to standard digits format (e.g. "015612512")
+ * Strips spaces, dashes, dots, parentheses, and converts Cambodia code +855 / 855 to 0.
+ */
+export function normalizePhone(phone) {
+  if (!phone) return '';
+  let digits = String(phone).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('8550')) {
+    digits = digits.slice(3);
+  } else if (digits.startsWith('855') && digits.length >= 11) {
+    digits = '0' + digits.slice(3);
+  }
+  return digits;
+}
+
+/**
+ * Generate common Cambodian phone spacing formats for database query matching
+ */
+export function getPhoneVariations(phone) {
+  const norm = normalizePhone(phone);
+  if (!norm || norm.length < 8) return [];
+  const vars = new Set();
+  vars.add(norm); // 015612512
+  
+  if (norm.length === 9) {
+    // 3-3-3 (e.g. 015 612 512)
+    vars.add(norm.slice(0, 3) + ' ' + norm.slice(3, 6) + ' ' + norm.slice(6));
+    vars.add(norm.slice(0, 3) + '-' + norm.slice(3, 6) + '-' + norm.slice(6));
+    // 3-2-2-2 (e.g. 015 61 25 12)
+    vars.add(norm.slice(0, 3) + ' ' + norm.slice(3, 5) + ' ' + norm.slice(5, 7) + ' ' + norm.slice(7));
+  } else if (norm.length === 10) {
+    // 3-3-4 (e.g. 012 345 6789)
+    vars.add(norm.slice(0, 3) + ' ' + norm.slice(3, 6) + ' ' + norm.slice(6));
+    vars.add(norm.slice(0, 3) + '-' + norm.slice(3, 6) + '-' + norm.slice(6));
+    // 3-3-2-2 (e.g. 012 345 67 89)
+    vars.add(norm.slice(0, 3) + ' ' + norm.slice(3, 6) + ' ' + norm.slice(6, 8) + ' ' + norm.slice(8));
+  }
+  return Array.from(vars);
+}
+
+/**
+ * Check if a customer with the given phone number already exists
+ * Returns the matching customer object if found, or null if no duplicate exists.
+ */
+export async function checkDuplicateCustomerPhone(phone, excludeCustomerId = null, customersList = [], supabaseClient = null) {
+  const norm = normalizePhone(phone);
+  if (!norm || norm.length < 8) return null;
+
+  // 1. Check in-memory customers list
+  if (Array.isArray(customersList) && customersList.length > 0) {
+    const found = customersList.find(c => {
+      if (excludeCustomerId && c.id === excludeCustomerId) return false;
+      return normalizePhone(c.phone) === norm;
+    });
+    if (found) return found;
+  }
+
+  // 2. Query Supabase database to be thorough
+  if (supabaseClient) {
+    try {
+      const raw = String(phone).trim();
+      const variations = getPhoneVariations(phone);
+      const last3 = norm.slice(-3);
+      
+      const filterList = [
+        `phone.eq.${raw}`,
+        ...variations.map(v => `phone.eq.${v}`),
+        `phone.ilike.%${last3}%`
+      ];
+      const orFilters = filterList.join(',');
+
+      const { data, error } = await supabaseClient
+        .from('customers')
+        .select('id, name, phone, village, commune, district, province, branch, branches, customer_type, primary_crop, crops')
+        .not('phone', 'is', null)
+        .or(orFilters)
+        .limit(25);
+
+      if (!error && Array.isArray(data)) {
+        const match = data.find(c => {
+          if (excludeCustomerId && c.id === excludeCustomerId) return false;
+          return normalizePhone(c.phone) === norm;
+        });
+        if (match) return match;
+      }
+    } catch (err) {
+      console.warn('Error during phone duplication check:', err);
+    }
+  }
+
+  return null;
+}

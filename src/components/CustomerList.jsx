@@ -4,10 +4,10 @@ import {
   User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, 
   Table as TableIcon, LayoutGrid, X, CheckCircle2, ClipboardList,
   Navigation, Loader2, ExternalLink, Store, UserCheck, ChevronDown, ChevronUp,
-  Building, Check
+  Building, Check, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -51,6 +51,8 @@ export default function CustomerList({
   const [formType, setFormType] = useState('កសិករ');
   const [formCustomType, setFormCustomType] = useState('');
   const [formPhone, setFormPhone] = useState('');
+  const [duplicateCustomer, setDuplicateCustomer] = useState(null);
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
   const [formBranches, setFormBranches] = useState([]);
   const [customBranchInput, setCustomBranchInput] = useState('');
   const [formVillage, setFormVillage] = useState('');
@@ -63,6 +65,46 @@ export default function CustomerList({
   
   const [gettingGPS, setGettingGPS] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Real-time verification to prevent duplicate phone numbers
+  useEffect(() => {
+    if (!isAddModalOpen) {
+      setDuplicateCustomer(null);
+      setIsCheckingPhone(false);
+      return;
+    }
+
+    const norm = normalizePhone(formPhone);
+    if (!norm || norm.length < 8) {
+      setDuplicateCustomer(null);
+      setIsCheckingPhone(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCheckingPhone(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await checkDuplicateCustomerPhone(
+          formPhone, 
+          editingCustomer?.id, 
+          customers, 
+          supabase
+        );
+        if (isMounted) {
+          setDuplicateCustomer(found);
+          setIsCheckingPhone(false);
+        }
+      } catch (err) {
+        if (isMounted) setIsCheckingPhone(false);
+      }
+    }, 280);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [formPhone, editingCustomer, isAddModalOpen, customers]);
 
   // Check delete permission
   const canDelete = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_customer);
@@ -92,9 +134,14 @@ export default function CustomerList({
       (cr.variety || '').toLowerCase().includes(s)
     );
 
+    const normSearch = normalizePhone(s);
+    const phoneMatches = 
+      (c.phone || '').toLowerCase().includes(s) ||
+      (normSearch.length >= 3 && normalizePhone(c.phone).includes(normSearch));
+
     const matchSearch = 
       (c.name || '').toLowerCase().includes(s) ||
-      (c.phone || '').toLowerCase().includes(s) ||
+      phoneMatches ||
       (c.village || '').toLowerCase().includes(s) ||
       (c.commune || '').toLowerCase().includes(s) ||
       (c.district || '').toLowerCase().includes(s) ||
@@ -113,6 +160,8 @@ export default function CustomerList({
 
   const handleOpenAdd = () => {
     setEditingCustomer(null);
+    setDuplicateCustomer(null);
+    setIsCheckingPhone(false);
     setFormName('');
     setFormGender('ប្រុស');
     setFormType('កសិករ');
@@ -134,6 +183,8 @@ export default function CustomerList({
 
   const handleOpenEdit = (cust) => {
     setEditingCustomer(cust);
+    setDuplicateCustomer(null);
+    setIsCheckingPhone(false);
     setFormName(cust.name || '');
     setFormGender(cust.gender || 'ប្រុស');
     
@@ -208,6 +259,23 @@ export default function CustomerList({
   const handleSaveCustomer = async (e) => {
     e.preventDefault();
     if (!formName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
+
+    // Verify phone number to prevent duplicates
+    if (formPhone.trim()) {
+      setIsSaving(true);
+      const duplicate = await checkDuplicateCustomerPhone(
+        formPhone, 
+        editingCustomer?.id, 
+        customers, 
+        supabase
+      );
+      if (duplicate) {
+        setIsSaving(false);
+        setDuplicateCustomer(duplicate);
+        alert(`មិនអាចរក្សាទុកបានទេ!\n\nលេខទូរស័ព្ទ «${formPhone}» នេះមានរួចហើយក្នុងប្រព័ន្ធ ជារបស់អតិថិជនឈ្មោះ «${duplicate.name}» (${duplicate.phone || ''})។\n\nសូមកុំបង្កើតទិន្នន័យស្ទួន!`);
+        return;
+      }
+    }
 
     setIsSaving(true);
     const resolvedType = formType === 'ផ្សេងៗ' 
@@ -838,16 +906,67 @@ export default function CustomerList({
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">លេខទូរស័ព្ទ</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 block">លេខទូរស័ព្ទ</label>
+                    {isCheckingPhone && (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1 font-normal">
+                        <Loader2 size={10} className="animate-spin text-emerald-600" />
+                        <span>ផ្ទៀងផ្ទាត់...</span>
+                      </span>
+                    )}
+                    {!isCheckingPhone && duplicateCustomer && (
+                      <span className="text-[10px] text-rose-600 font-bold flex items-center gap-1">
+                        <AlertTriangle size={10} />
+                        <span>ស្ទួនលេខទូរស័ព្ទ</span>
+                      </span>
+                    )}
+                    {!isCheckingPhone && !duplicateCustomer && normalizePhone(formPhone).length >= 8 && (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                        <CheckCircle2 size={10} />
+                        <span>ត្រឹមត្រូវ (មិនស្ទួន)</span>
+                      </span>
+                    )}
+                  </div>
                   <input 
                     type="text" 
                     value={formPhone} 
                     onChange={e => setFormPhone(e.target.value)} 
                     placeholder="012 345 678"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono"
+                    className={`w-full border rounded-lg p-2 text-xs font-mono transition-colors ${
+                      duplicateCustomer 
+                        ? 'bg-rose-50 border-rose-400 text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500' 
+                        : 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500'
+                    }`}
                   />
                 </div>
               </div>
+
+              {/* Warning Alert if Phone Duplicate */}
+              {duplicateCustomer && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1.5 animate-fadeIn">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1 flex-1">
+                      <div className="font-bold text-rose-800 flex items-center justify-between">
+                        <span>លេខទូរស័ព្ទនេះមានក្នុងប្រព័ន្ធរួចហើយ! (កុំបង្កើតស្ទួន)</span>
+                        <span className="text-[10px] bg-rose-200/70 text-rose-800 px-1.5 py-0.5 rounded font-mono">
+                          ID: {duplicateCustomer.id.slice(0, 8)}...
+                        </span>
+                      </div>
+                      <div className="text-slate-700 text-xs">
+                        ជារបស់អតិថិជនឈ្មោះ <span className="font-bold text-slate-900">«{duplicateCustomer.name}»</span>
+                        {duplicateCustomer.phone && <span className="font-mono text-rose-700 font-bold ml-1">({duplicateCustomer.phone})</span>}
+                        {duplicateCustomer.customer_type && <span className="text-slate-500 text-[11px] ml-1">[{duplicateCustomer.customer_type}]</span>}
+                      </div>
+                      <div className="text-slate-500 text-[11px] flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
+                        <span>ទីតាំង: {[duplicateCustomer.village, duplicateCustomer.commune, duplicateCustomer.district, duplicateCustomer.province].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}</span>
+                        <span>• សាខា: {duplicateCustomer.branch || (Array.isArray(duplicateCustomer.branches) ? duplicateCustomer.branches.join(', ') : 'ការិយាល័យកណ្តាល')}</span>
+                        {duplicateCustomer.primary_crop && <span>• ដំណាំ: {duplicateCustomer.primary_crop}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {formType === 'ផ្សេងៗ' && (
                 <div>
@@ -1077,11 +1196,19 @@ export default function CustomerList({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSaving}
-                  className="w-1/2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition-colors flex items-center justify-center gap-1"
+                  disabled={isSaving || Boolean(duplicateCustomer)}
+                  className={`w-1/2 py-2 font-bold rounded-xl text-xs shadow transition-colors flex items-center justify-center gap-1 ${
+                    duplicateCustomer 
+                      ? 'bg-rose-400 cursor-not-allowed text-white' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
                 >
-                  <CheckCircle2 size={14} />
-                  <span>{isSaving ? 'កំពុងរក្សាទុក...' : (editingCustomer ? 'រក្សាទុកការកែប្រែ' : 'បន្ថែមអតិថិជន')}</span>
+                  {duplicateCustomer ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                  <span>
+                    {duplicateCustomer 
+                      ? 'មិនអាចរក្សាទុក (ស្ទួនលេខទូរស័ព្ទ)' 
+                      : (isSaving ? 'កំពុងរក្សាទុក...' : (editingCustomer ? 'រក្សាទុកការកែប្រែ' : 'បន្ថែមអតិថិជន'))}
+                  </span>
                 </button>
               </div>
 

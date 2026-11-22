@@ -5,7 +5,7 @@ import {
   MapPinOff, Building, Tag, Loader2
 } from 'lucide-react';
 import { supabase } from '../supabase';
-import { parseCrops, parseBranches } from '../staffUtils';
+import { parseCrops, parseBranches, normalizePhone } from '../staffUtils';
 
 export default function CustomerSelectSearch({
   customers = [],
@@ -47,6 +47,7 @@ export default function CustomerSelectSearch({
       return customers.slice(0, 30);
     }
     const q = searchTerm.toLowerCase().trim();
+    const normQ = normalizePhone(q);
     return customers.filter(c => {
       const name = (c.name || '').toLowerCase();
       const phone = (c.phone || '').toLowerCase();
@@ -58,8 +59,10 @@ export default function CustomerSelectSearch({
       const branches = parseBranches(c.branches, c.branch);
       const branchesStr = branches.join(' ').toLowerCase();
 
+      const phoneMatches = phone.includes(q) || (normQ.length >= 3 && normalizePhone(c.phone).includes(normQ));
+
       return name.includes(q) || 
-             phone.includes(q) || 
+             phoneMatches || 
              village.includes(q) || 
              commune.includes(q) || 
              district.includes(q) || 
@@ -81,10 +84,21 @@ export default function CustomerSelectSearch({
     const timer = setTimeout(async () => {
       try {
         setIsSearchingRemote(true);
+        const normTerm = normalizePhone(term);
+        const searchFilters = [
+          `name.ilike.%${term}%`,
+          `phone.ilike.%${term}%`,
+          ...(normTerm.length >= 3 ? [`phone.ilike.%${normTerm.slice(-4)}%`] : []),
+          `village.ilike.%${term}%`,
+          `commune.ilike.%${term}%`,
+          `district.ilike.%${term}%`,
+          `province.ilike.%${term}%`,
+          `primary_crop.ilike.%${term}%`
+        ];
         const { data, error } = await supabase
           .from('customers')
           .select('*')
-          .or(`name.ilike.%${term}%,phone.ilike.%${term}%,village.ilike.%${term}%,commune.ilike.%${term}%,district.ilike.%${term}%,province.ilike.%${term}%,primary_crop.ilike.%${term}%`)
+          .or(searchFilters.join(','))
           .limit(30);
 
         if (!error && data) {

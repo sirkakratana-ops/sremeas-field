@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
-import { parseCrops, getStaffBranches, getStaffList } from '../staffUtils';
+import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
 
 export default function NewVisitModal({ 
   isOpen, 
@@ -35,12 +35,54 @@ export default function NewVisitModal({
   const [newCustGender, setNewCustGender] = useState('ប្រុស');
   const [newCustType, setNewCustType] = useState('កសិករ');
   const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustPhoneDuplicate, setNewCustPhoneDuplicate] = useState(null);
+  const [isCheckingNewCustPhone, setIsCheckingNewCustPhone] = useState(false);
   const [newCustBranches, setNewCustBranches] = useState(() => [currentUser?.branch || 'ការិយាល័យកណ្តាល']);
   const [newCustVillage, setNewCustVillage] = useState('');
   const [newCustCommune, setNewCustCommune] = useState('');
   const [newCustDistrict, setNewCustDistrict] = useState('');
   const [newCustProvince, setNewCustProvince] = useState('');
   const [newCustCrops, setNewCustCrops] = useState([]);
+
+  // Real-time verification to prevent duplicate phone numbers when adding new customer
+  useEffect(() => {
+    if (!showAddCustomer) {
+      setNewCustPhoneDuplicate(null);
+      setIsCheckingNewCustPhone(false);
+      return;
+    }
+
+    const norm = normalizePhone(newCustPhone);
+    if (!norm || norm.length < 8) {
+      setNewCustPhoneDuplicate(null);
+      setIsCheckingNewCustPhone(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCheckingNewCustPhone(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await checkDuplicateCustomerPhone(
+          newCustPhone, 
+          null, 
+          customers, 
+          supabase
+        );
+        if (isMounted) {
+          setNewCustPhoneDuplicate(found);
+          setIsCheckingNewCustPhone(false);
+        }
+      } catch (err) {
+        if (isMounted) setIsCheckingNewCustPhone(false);
+      }
+    }, 280);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [newCustPhone, showAddCustomer, customers]);
 
   // Visit Fields
   const [latitude, setLatitude] = useState(null);
@@ -108,6 +150,9 @@ export default function NewVisitModal({
       setPhotoFiles([]);
       setPhotoPreviews([]);
       setShowAddCustomer(false);
+      setNewCustPhone('');
+      setNewCustPhoneDuplicate(null);
+      setIsCheckingNewCustPhone(false);
       setPulledNotice('');
     } else {
       setStaffName(currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
@@ -129,6 +174,9 @@ export default function NewVisitModal({
       setPhotoFiles([]);
       setPhotoPreviews([]);
       setShowAddCustomer(false);
+      setNewCustPhone('');
+      setNewCustPhoneDuplicate(null);
+      setIsCheckingNewCustPhone(false);
       setPulledNotice('');
       setNewCustCrops([
         { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
@@ -241,6 +289,16 @@ export default function NewVisitModal({
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
     if (!newCustName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
+
+    // Verify phone number to prevent duplicate customer
+    if (newCustPhone.trim()) {
+      const duplicate = await checkDuplicateCustomerPhone(newCustPhone, null, customers, supabase);
+      if (duplicate) {
+        setNewCustPhoneDuplicate(duplicate);
+        alert(`មិនអាចបង្កើតអតិថិជនថ្មីបានទេ!\n\nលេខទូរស័ព្ទ «${newCustPhone}» នេះមានរួចហើយ ជារបស់អតិថិជនឈ្មោះ «${duplicate.name}» (${duplicate.phone || ''})។\n\nលោកអ្នកអាចចុចប៊ូតុង «ជ្រើសរើសយក ${duplicate.name} នេះ» ដើម្បីបន្តការចុះចំការដោយមិនបង្កើតទិន្នន័យស្ទួន។`);
+        return;
+      }
+    }
 
     const primaryCropString = newCustCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
     const primaryBranchString = newCustBranches.join(', ') || null;
@@ -632,14 +690,64 @@ export default function NewVisitModal({
                     <option value="ដេប៉ូ">ដេប៉ូ</option>
                     <option value="ផ្សេងៗ">ផ្សេងៗ</option>
                   </select>
-                  <input 
-                    type="text" 
-                    placeholder="លេខទូរស័ព្ទ" 
-                    value={newCustPhone} 
-                    onChange={e => setNewCustPhone(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
-                  />
+                  <div>
+                    <input 
+                      type="text" 
+                      placeholder="លេខទូរស័ព្ទ (ឧ. 012 345 678)" 
+                      value={newCustPhone} 
+                      onChange={e => setNewCustPhone(e.target.value)}
+                      className={`w-full bg-white border rounded-lg px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                        newCustPhoneDuplicate 
+                          ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500' 
+                          : 'border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500'
+                      }`}
+                    />
+                    {isCheckingNewCustPhone && (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1 font-normal mt-0.5">
+                        <Loader2 size={10} className="animate-spin text-emerald-600" />
+                        <span>ផ្ទៀងផ្ទាត់លេខ...</span>
+                      </span>
+                    )}
+                    {!isCheckingNewCustPhone && !newCustPhoneDuplicate && normalizePhone(newCustPhone).length >= 8 && (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 size={10} />
+                        <span>លេខអាចប្រើបាន</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Warning Card if duplicate phone detected */}
+                {newCustPhoneDuplicate && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-2 animate-fadeIn">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-slate-700 flex-1">
+                        <span className="font-bold text-rose-800 block">លេខទូរស័ព្ទនេះមានក្នុងប្រព័ន្ធរួចហើយ! (កុំបង្កើតស្ទួន)</span>
+                        ជារបស់អតិថិជនឈ្មោះ <span className="font-bold text-slate-900">«{newCustPhoneDuplicate.name}»</span>
+                        {newCustPhoneDuplicate.phone && <span className="font-mono text-rose-700 font-bold ml-1">({newCustPhoneDuplicate.phone})</span>}
+                        {newCustPhoneDuplicate.customer_type && <span className="text-slate-500 text-[10px] ml-1">[{newCustPhoneDuplicate.customer_type}]</span>}
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          ទីតាំង: {[newCustPhoneDuplicate.village, newCustPhoneDuplicate.commune, newCustPhoneDuplicate.district, newCustPhoneDuplicate.province].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}
+                          {newCustPhoneDuplicate.branch && ` • សាខា: ${newCustPhoneDuplicate.branch}`}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomerId(newCustPhoneDuplicate.id);
+                        pullDataFromCustomer(newCustPhoneDuplicate);
+                        setShowAddCustomer(false);
+                        setNewCustPhoneDuplicate(null);
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-md text-[11px] flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+                    >
+                      <UserCheck size={13} />
+                      <span>ជ្រើសរើសយក «{newCustPhoneDuplicate.name}» នេះសម្រាប់ការចុះចំការភ្លាមៗ</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Branch selector for new customer */}
                 <div className="p-2 bg-slate-100/80 rounded-lg space-y-1 text-xs">
@@ -720,10 +828,15 @@ export default function NewVisitModal({
                 <button 
                   type="button" 
                   onClick={handleCreateCustomer}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5"
+                  disabled={Boolean(newCustPhoneDuplicate)}
+                  className={`w-full font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                    newCustPhoneDuplicate 
+                      ? 'bg-rose-400 cursor-not-allowed text-white' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
                 >
-                  <Save size={13} />
-                  <span>រក្សាទុកអតិថិជនថ្មី & ទាញយកទិន្នន័យ</span>
+                  {newCustPhoneDuplicate ? <AlertCircle size={13} /> : <Save size={13} />}
+                  <span>{newCustPhoneDuplicate ? 'មិនអាចបង្កើត (ស្ទួនលេខទូរស័ព្ទ)' : 'រក្សាទុកអតិថិជនថ្មី & ទាញយកទិន្នន័យ'}</span>
                 </button>
               </div>
             ) : (
