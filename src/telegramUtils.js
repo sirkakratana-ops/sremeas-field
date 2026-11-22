@@ -210,23 +210,30 @@ export async function copyVisitReportToClipboard(visit) {
   }
 }
 
+export const DEFAULT_TELEGRAM_SETTINGS = {
+  botToken: '9082773267:AAFBiXW0q5uQ7R7Kl1h-hJUjihTDJbW-Buk',
+  chatId: '-1003237411022',
+  groupName: 'SALE TEAM 2026'
+};
+
 /**
- * Get saved Telegram Bot settings from localStorage
+ * Get saved Telegram Bot settings from localStorage with built-in default values
  */
 export function getTelegramSettings() {
   try {
     const raw = localStorage.getItem('sremeas_telegram_settings');
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return {
+        botToken: parsed.botToken || DEFAULT_TELEGRAM_SETTINGS.botToken,
+        chatId: parsed.chatId || DEFAULT_TELEGRAM_SETTINGS.chatId,
+        groupName: parsed.groupName || DEFAULT_TELEGRAM_SETTINGS.groupName
+      };
     }
   } catch (err) {
     console.warn('Failed to parse telegram settings:', err);
   }
-  return {
-    botToken: '',
-    chatId: '',
-    groupName: ''
-  };
+  return { ...DEFAULT_TELEGRAM_SETTINGS };
 }
 
 /**

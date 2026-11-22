@@ -9,7 +9,6 @@ import {
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
 import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
-import { openTelegramShare } from '../telegramUtils';
 
 export default function NewVisitModal({ 
   isOpen, 
@@ -475,16 +474,9 @@ export default function NewVisitModal({
         customers: customerObj || null
       };
 
+      alert(visitToEdit ? "បានកែប្រែកំណត់ត្រាជោគជ័យ!" : "កត់ត្រាការចុះចំការបានជោគជ័យ!");
       onVisitCreated(savedData);
       onClose();
-
-      const wantShare = window.confirm(
-        (visitToEdit ? "បានកែប្រែកំណត់ត្រាជោគជ័យ!" : "កត់ត្រាការចុះចំការបានជោគជ័យ!") +
-        "\n\nតើលោកអ្នកចង់ផ្ញើរបាយការណ៍នេះចូល Telegram Group ឥឡូវនេះដែរឬទេ?"
-      );
-      if (wantShare) {
-        openTelegramShare(visitWithCustomer);
-      }
     } catch (err) {
       alert("មានបញ្ហាក្នុងការរក្សាទុក: " + err.message);
     } finally {
