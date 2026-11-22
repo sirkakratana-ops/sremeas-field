@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { 
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
-  LayoutGrid, Phone, Package, ExternalLink, Building, Users 
+  LayoutGrid, Phone, Package, ExternalLink, Building, Users,
+  Send
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
+import ShareVisitModal from './ShareVisitModal';
 
 export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
+  const [sharingVisit, setSharingVisit] = useState(null);
 
   const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
 
@@ -311,6 +314,16 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                       <td className="py-2.5 px-3.5 text-center whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50/80 transition-colors shadow-xs">
                         <div className="flex items-center justify-center gap-1">
                           
+                          {/* Share to Telegram */}
+                          <button 
+                            type="button" 
+                            onClick={() => setSharingVisit(visit)} 
+                            title="ផ្ញើទៅកាន់ Telegram Group"
+                            className="p-1.5 text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors border border-sky-200"
+                          >
+                            <Send size={13} />
+                          </button>
+
                           {/* View Detail */}
                           <button 
                             type="button" 
@@ -504,6 +517,14 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                   <div className="flex items-center gap-1">
                     <button 
                       type="button" 
+                      onClick={() => setSharingVisit(visit)} 
+                      title="ផ្ញើទៅកាន់ Telegram Group"
+                      className="p-1.5 text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors border border-sky-200"
+                    >
+                      <Send size={13} />
+                    </button>
+                    <button 
+                      type="button" 
                       onClick={() => onSelectVisit(visit)} 
                       title="មើលលម្អិត"
                       className="p-1.5 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
@@ -536,6 +557,13 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
           })}
         </div>
       )}
+
+      {/* Share to Telegram Group Modal */}
+      <ShareVisitModal
+        visit={sharingVisit}
+        isOpen={Boolean(sharingVisit)}
+        onClose={() => setSharingVisit(null)}
+      />
 
     </div>
   );

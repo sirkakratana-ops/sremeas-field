@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, MapPin, Calendar, User, Sprout, AlertTriangle, 
   PackageCheck, FileText, Phone, ExternalLink, Image,
-  Building, Users, UserCheck
+  Building, Users, UserCheck, Send, Copy, Check
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
+import { copyVisitReportToClipboard } from '../telegramUtils';
+import ShareVisitModal from './ShareVisitModal';
 
 export default function VisitDetailModal({ visit, onClose }) {
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   if (!visit) return null;
 
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
@@ -250,7 +255,49 @@ export default function VisitDetailModal({ visit, onClose }) {
 
         </div>
 
+        {/* Modal Footer Actions */}
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95"
+            >
+              <Send size={13} />
+              <span>ផ្ញើចូល Telegram Group</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await copyVisitReportToClipboard(visit);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+              className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+            >
+              {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+              <span>{copied ? 'បានចម្លង!' : 'ចម្លងរបាយការណ៍'}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+          >
+            បិទ
+          </button>
+        </div>
+
       </div>
+
+      {/* Share to Telegram Modal */}
+      <ShareVisitModal
+        visit={visit}
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
     </div>
   );
 }
