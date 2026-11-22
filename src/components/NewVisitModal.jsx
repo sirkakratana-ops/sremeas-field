@@ -4,15 +4,19 @@ import { MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, User, Users, Save, 
 
 const CROP_SUGGESTIONS = ['ស្វាយចន្ទី', 'ស្រូវ', 'ទុរេន', 'ដំឡូងមី', 'ពោត', 'ស្វាយ', 'ម្រេច', 'កៅស៊ូ', 'បន្លែចម្រុះ'];
 
-export default function NewVisitModal({ isOpen, onClose, onVisitCreated, customers, onCustomerCreated, visitToEdit }) {
-  const [staffName, setStaffName] = useState(() => localStorage.getItem('sremeas_staff_name') || '');
+export default function NewVisitModal({ isOpen, onClose, onVisitCreated, customers, onCustomerCreated, visitToEdit, currentUser }) {
+  const [staffName, setStaffName] = useState(() => currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   
   // New Customer Fields
   const [newCustName, setNewCustName] = useState('');
+  const [newCustGender, setNewCustGender] = useState('ប្រុស');
+  const [newCustType, setNewCustType] = useState('កសិករ');
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustVillage, setNewCustVillage] = useState('');
+  const [newCustCommune, setNewCustCommune] = useState('');
+  const [newCustDistrict, setNewCustDistrict] = useState('');
   const [newCustProvince, setNewCustProvince] = useState('');
   const [newCustCrop, setNewCustCrop] = useState('');
 
@@ -58,7 +62,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       setPhotoPreviews([]);
       setShowAddCustomer(false);
     } else {
-      setStaffName(localStorage.getItem('sremeas_staff_name') || '');
+      setStaffName(currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
       setSelectedCustomerId('');
       setLatitude(null);
       setLongitude(null);
@@ -76,7 +80,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       setShowAddCustomer(false);
       handleGetGPS();
     }
-  }, [isOpen, visitToEdit]);
+  }, [isOpen, visitToEdit, currentUser]);
 
   const handleGetGPS = () => {
     if (!navigator.geolocation) {
@@ -119,21 +123,49 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
     if (!newCustName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
-    try {
-      const { data, error } = await supabase.from('customers').insert([{
-        name: newCustName.trim(),
-        phone: newCustPhone.trim() || null,
-        village: newCustVillage.trim() || null,
-        province: newCustProvince.trim() || null,
-        primary_crop: newCustCrop || null
-      }]).select().single();
 
-      if (error) throw error;
-      alert("បង្កើតអតិថិជនជោគជ័យ!");
-      onCustomerCreated(data);
-      setSelectedCustomerId(data.id);
-      if (data.primary_crop) setCropType(data.primary_crop);
-      if (data.village || data.province) setLocationAddress(`${data.village || ''} ${data.province || ''}`.trim());
+    const payload = {
+      name: newCustName.trim(),
+      gender: newCustGender || 'ប្រុស',
+      customer_type: newCustType || 'កសិករ',
+      phone: newCustPhone.trim() || null,
+      village: newCustVillage.trim() || null,
+      commune: newCustCommune.trim() || null,
+      district: newCustDistrict.trim() || null,
+      province: newCustProvince.trim() || null,
+      primary_crop: newCustCrop || null,
+      latitude: latitude || null,
+      longitude: longitude || null
+    };
+
+    try {
+      const { data, error } = await supabase.from('customers').insert([payload]).select().single();
+      if (error) {
+        if (error.message.includes('column') || error.code === 'PGRST204') {
+          const fallbackPayload = {
+            name: newCustName.trim(),
+            phone: newCustPhone.trim() || null,
+            village: newCustVillage.trim() || null,
+            province: newCustProvince.trim() || null,
+            primary_crop: newCustCrop || null
+          };
+          const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
+          if (fbErr) throw fbErr;
+          alert("បង្កើតអតិថិជនជោគជ័យ!");
+          onCustomerCreated({ ...fbData, ...payload });
+          setSelectedCustomerId(fbData.id);
+        } else {
+          throw error;
+        }
+      } else {
+        alert("បង្កើតអតិថិជនជោគជ័យ!");
+        onCustomerCreated(data);
+        setSelectedCustomerId(data.id);
+      }
+
+      if (payload.primary_crop) setCropType(payload.primary_crop);
+      const fullAddr = [payload.village, payload.commune, payload.district, payload.province].filter(Boolean).join(' ');
+      if (fullAddr && !locationAddress) setLocationAddress(fullAddr);
       setShowAddCustomer(false);
     } catch (err) {
       alert("មិនអាចបង្កើតអតិថិជនបានទេ: " + err.message);
@@ -265,45 +297,90 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
             {showAddCustomer ? (
               <div className="space-y-2 pt-2 border-t border-slate-200">
-                <input 
-                  type="text" 
-                  placeholder="ឈ្មោះម្ចាស់ចំការ *" 
-                  value={newCustName} 
-                  onChange={e => setNewCustName(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
-                />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <input 
                     type="text" 
-                    placeholder="លេខទូរស័ព្ទ" 
-                    value={newCustPhone} 
-                    onChange={e => setNewCustPhone(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    placeholder="ឈ្មោះអតិថិជន *" 
+                    value={newCustName} 
+                    onChange={e => setNewCustName(e.target.value)}
+                    className="col-span-2 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
                   />
-                  <input 
-                    type="text" 
-                    placeholder="ដំណាំចម្បង (ឧ. ស្វាយចន្ទី)" 
-                    value={newCustCrop} 
-                    onChange={e => setNewCustCrop(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
-                  />
+                  <select
+                    value={newCustGender}
+                    onChange={e => setNewCustGender(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold"
+                  >
+                    <option value="ប្រុស">ប្រុស</option>
+                    <option value="ស្រី">ស្រី</option>
+                  </select>
                 </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <select
+                      value={newCustType}
+                      onChange={e => setNewCustType(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold"
+                    >
+                      <option value="កសិករ">កសិករ</option>
+                      <option value="ដេប៉ូ">ដេប៉ូ</option>
+                      <option value="ផ្សេងៗ">ផ្សេងៗ</option>
+                    </select>
+                  </div>
+                  <div>
+                    <input 
+                      type="text" 
+                      placeholder="លេខទូរស័ព្ទ" 
+                      value={newCustPhone} 
+                      onChange={e => setNewCustPhone(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <input 
+                      type="text" 
+                      placeholder="ដំណាំ (ឧ. ស្វាយចន្ទី)" 
+                      value={newCustCrop} 
+                      onChange={e => setNewCustCrop(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <input 
                     type="text" 
-                    placeholder="ភូមិ / ឃុំ" 
+                    placeholder="ភូមិ" 
                     value={newCustVillage} 
                     onChange={e => setNewCustVillage(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
                   />
                   <input 
                     type="text" 
-                    placeholder="ស្រុក / ខេត្ត" 
+                    placeholder="ឃុំ / សង្កាត់" 
+                    value={newCustCommune} 
+                    onChange={e => setNewCustCommune(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="ស្រុក / ខណ្ឌ" 
+                    value={newCustDistrict} 
+                    onChange={e => setNewCustDistrict(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="ខេត្ត / រាជធានី" 
                     value={newCustProvince} 
                     onChange={e => setNewCustProvince(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
                   />
                 </div>
+
                 <button 
                   type="button" 
                   onClick={handleCreateCustomer}

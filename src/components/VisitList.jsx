@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Calendar, User, Sprout, Image, AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, LayoutGrid, Phone, Package, ExternalLink } from 'lucide-react';
 
-export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit }) {
+export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
+
+  const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
 
   const cropTypes = ['All', ...Array.from(new Set(visits.map(v => v.crop_type).filter(Boolean)))];
 
@@ -269,14 +271,16 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                           </button>
 
                           {/* Delete */}
-                          <button 
-                            type="button" 
-                            onClick={() => onDeleteVisit(visit)} 
-                            title="លុប"
-                            className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {canDeleteVisit && (
+                            <button 
+                              type="button" 
+                              onClick={() => onDeleteVisit(visit)} 
+                              title="លុប"
+                              className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
 
                         </div>
                       </td>
@@ -419,14 +423,16 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                     >
                       <Edit size={13} />
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => onDeleteVisit(visit)} 
-                      title="លុប"
-                      className="p-1.5 text-rose-600 hover:text-rose-800 bg-white hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {canDeleteVisit && (
+                      <button 
+                        type="button" 
+                        onClick={() => onDeleteVisit(visit)} 
+                        title="លុប"
+                        className="p-1.5 text-rose-600 hover:text-rose-800 bg-white hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
 

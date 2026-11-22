@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout } from 'lucide-react';
+import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User } from 'lucide-react';
 
 import VisitList from './components/VisitList';
 import MapView from './components/MapView';
 import CustomerList from './components/CustomerList';
+import AdminDashboard from './components/AdminDashboard';
+import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'map' | 'customers'
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sremeas_logged_in_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'map' | 'customers' | 'admin'
   const [visits, setVisits] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,8 +31,10 @@ export default function App() {
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    if (currentUser) {
+      fetchAll();
+    }
+  }, [currentUser]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -49,6 +62,18 @@ export default function App() {
     if (data) setCustomers(data);
   };
 
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    setActiveTab('visits');
+  };
+
+  const handleLogout = () => {
+    if (window.confirm("តើអ្នកពិតជាចង់ចាកចេញពីប្រព័ន្ធមែនទេ?")) {
+      localStorage.removeItem('sremeas_logged_in_user');
+      setCurrentUser(null);
+    }
+  };
+
   const handleOpenNewVisit = () => {
     setVisitToEdit(null);
     setIsNewVisitOpen(true);
@@ -60,6 +85,11 @@ export default function App() {
   };
 
   const handleDeleteVisit = async (visit) => {
+    const canDelete = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
+    if (!canDelete) {
+      return alert("អ្នកមិនមានសិទ្ធិលុបកំណត់ត្រាចុះចំការទេ! សូមទាក់ទង Admin។");
+    }
+
     const custName = visit.customers?.name || 'ម្ចាស់ចំការ';
     if (!window.confirm(`តើអ្នកពិតជាចង់លុបកំណត់ត្រាចុះចំការរបស់ "${custName}" មែនទេ?`)) return;
 
@@ -98,13 +128,21 @@ export default function App() {
     setIsNewVisitOpen(true);
   };
 
+  // If not logged in, show Login Screen
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  const isAdmin = currentUser.role === 'Admin' || Boolean(currentUser.permissions?.can_manage_staff);
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans pb-16 md:pb-6">
       
       {/* TOP HEADER */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-2xs">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-2.5 shadow-2xs">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           
+          {/* Logo & Title */}
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
               <Sprout size={20} />
@@ -115,22 +153,51 @@ export default function App() {
             </div>
           </div>
 
+          {/* User Profile & Actions */}
           <div className="flex items-center gap-2">
+            
+            {/* User Badge */}
+            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] ${
+                currentUser.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {currentUser.name ? currentUser.name[0] : 'U'}
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 block text-[11px] leading-tight">
+                  {currentUser.name}
+                </span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
+                  currentUser.role === 'Admin' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  {currentUser.role} {currentUser.branch ? `• ${currentUser.branch}` : ''}
+                </span>
+              </div>
+            </div>
+
             <button 
               onClick={fetchAll} 
               disabled={loading}
               title="ផ្ទុកទិន្នន័យឡើងវិញ"
               className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
             >
-              <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
 
             <button 
               onClick={handleOpenNewVisit}
-              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
             >
-              <Plus size={16} />
+              <Plus size={15} />
               <span>ចុះចំការថ្មី</span>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              title="ចាកចេញពីប្រព័ន្ធ (Logout)"
+              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200"
+            >
+              <LogOut size={16} />
             </button>
           </div>
 
@@ -169,6 +236,18 @@ export default function App() {
             <Users size={14} />
             <span>បញ្ជីអតិថិជន ({customers.length})</span>
           </button>
+
+          {isAdmin && (
+            <button 
+              onClick={() => setActiveTab('admin')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'admin' ? 'bg-white text-blue-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldCheck size={14} className="text-blue-600" />
+              <span>គ្រប់គ្រងបុគ្គលិក (Admin)</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -188,6 +267,7 @@ export default function App() {
                 onEditVisit={handleEditVisit}
                 onDeleteVisit={handleDeleteVisit}
                 onOpenNewVisit={handleOpenNewVisit}
+                currentUser={currentUser}
               />
             )}
 
@@ -203,8 +283,17 @@ export default function App() {
                 customers={customers} 
                 onOpenNewCustomer={handleOpenNewVisit}
                 onSelectCustomerForVisit={handleSelectCustomerForVisit}
+                onCustomerCreated={handleCustomerCreated}
                 onCustomerUpdated={handleCustomerUpdated}
                 onCustomerDeleted={handleCustomerDeleted}
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'admin' && isAdmin && (
+              <AdminDashboard 
+                currentUser={currentUser}
+                onStaffListChanged={fetchVisits}
               />
             )}
           </>
@@ -212,7 +301,7 @@ export default function App() {
       </main>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-2 px-3 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-2 px-2 shadow-lg">
         <button 
           onClick={() => setActiveTab('visits')}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
@@ -242,6 +331,18 @@ export default function App() {
           <Users size={18} />
           <span>អតិថិជន</span>
         </button>
+
+        {isAdmin && (
+          <button 
+            onClick={() => setActiveTab('admin')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTab === 'admin' ? 'text-blue-700' : 'text-slate-400'
+            }`}
+          >
+            <ShieldCheck size={18} />
+            <span>បុគ្គលិក</span>
+          </button>
+        )}
       </nav>
 
       {/* MODALS */}
@@ -255,6 +356,7 @@ export default function App() {
         onVisitCreated={handleVisitCreatedOrUpdated}
         customers={customers}
         onCustomerCreated={handleCustomerCreated}
+        currentUser={currentUser}
       />
 
       <VisitDetailModal 
