@@ -90,11 +90,48 @@ export function formatVisitTelegramText(visit) {
 }
 
 /**
- * Generate standard Telegram web/app share URL
+ * Format concise summary text for Telegram Share URL (to fit strictly within HTTP GET query limits)
+ */
+export function formatVisitTelegramSummary(visit) {
+  if (!visit) return '';
+
+  const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
+  const cropsSummary = crops.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''}`).filter(Boolean).join(', ') || visit.crop_type || '—';
+
+  const locStr = visit.location_address || 
+    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, visit.customers?.province]
+      .filter(Boolean)
+      .join(', ') || 
+    visit.customers?.village || 
+    '—';
+
+  const lines = [
+    `របាយការណ៍ចុះចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
+    visit.customers?.phone ? `ទូរស័ព្ទ: ${visit.customers.phone}` : null,
+    `ទីតាំង: ${locStr}`,
+    `ដំណាំ: ${cropsSummary}`,
+    `ស្ថានភាព: ${visit.crop_status || 'ល្អ'}`,
+    visit.issues_identified ? `បញ្ហា: ${visit.issues_identified}` : null,
+    visit.products_recommended ? `ណែនាំ: ${visit.products_recommended}` : null,
+    `បុគ្គលិក: ${visit.staff_name || '—'}${visit.branch ? ` (${visit.branch})` : ''}`,
+    `កាលបរិច្ឆេទ: ${visit.visit_date ? new Date(visit.visit_date).toLocaleDateString('km-KH') : ''}`
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+/**
+ * Generate standard Telegram share URL with guaranteed `url` and `text` parameters
+ * to prevent Telegram "400 Bad Request" errors.
  */
 export function getTelegramShareUrl(visit) {
-  const text = formatVisitTelegramText(visit);
-  return `https://t.me/share/url?text=${encodeURIComponent(text)}`;
+  const summaryText = formatVisitTelegramSummary(visit);
+  const mapsUrl = (visit.latitude && visit.longitude) 
+    ? `https://www.google.com/maps?q=${visit.latitude},${visit.longitude}` 
+    : 'https://sirkakratana-ops.github.io/sremeas-field/';
+  
+  // Telegram's `t.me/share/url` REQUIRES the `url` query parameter. Without it, it returns "Bad Request"!
+  return `https://t.me/share/url?url=${encodeURIComponent(mapsUrl)}&text=${encodeURIComponent(summaryText)}`;
 }
 
 /**
@@ -163,7 +200,8 @@ export function saveTelegramSettings(settings) {
 }
 
 /**
- * Send report directly to a Telegram Group via Bot API
+ * Send report directly to a Telegram Group via Bot API,
+ * natively displaying actual photos (single photo or photo album) inside the group!
  */
 export async function sendVisitViaTelegramBot(visit, customSettings = null) {
   const settings = customSettings || getTelegramSettings();
@@ -174,24 +212,108 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
     throw new Error('សូមបញ្ចូល Telegram Bot Token និង Chat ID ជាមុនសិន!');
   }
 
-  const text = formatVisitTelegramText(visit);
+  const fullText = formatVisitTelegramText(visit);
+  const photos = Array.isArray(visit.photos) 
+    ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) 
+    : [];
 
+  // ==========================================================
+  // CASE 1: Has exactly 1 Photo -> Send via `sendPhoto`
+  // ==========================================================
+  if (photos.length === 1) {
+    try {
+      // Telegram photo caption maximum length is 1024 characters
+      const caption = fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...';
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          photo: photos[0],
+          caption: caption
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើរូបភាព');
+      }
+
+      // If fullText was truncated, send the full text message right after
+      if (fullText.length > 1024) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: fullText
+          })
+        });
+      }
+      return data;
+    } catch (photoErr) {
+      console.warn('sendPhoto failed, attempting fallback to sendMessage:', photoErr);
+      // Fallback continues below
+    }
+  }
+
+  // ==========================================================
+  // CASE 2: Has Multiple Photos (2-10) -> Send as Photo Album via `sendMediaGroup`
+  // ==========================================================
+  if (photos.length > 1) {
+    try {
+      const mediaList = photos.slice(0, 10).map((p, idx) => ({
+        type: 'photo',
+        media: p,
+        caption: idx === 0 ? (fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...') : undefined
+      }));
+
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMediaGroup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          media: mediaList
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើក្រុមរូបភាព');
+      }
+
+      // If fullText was truncated, send the full text message right after
+      if (fullText.length > 1024) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: fullText
+          })
+        });
+      }
+      return data;
+    } catch (mediaErr) {
+      console.warn('sendMediaGroup failed, attempting fallback to sendMessage:', mediaErr);
+      // Fallback continues below
+    }
+  }
+
+  // ==========================================================
+  // CASE 3: No photos or photo upload failed -> Send via `sendMessage`
+  // ==========================================================
   const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
-      text: text,
+      text: fullText,
       disable_web_page_preview: false
     })
   });
 
   const data = await res.json();
   if (!res.ok || !data.ok) {
-    throw new Error(data.description || 'មិនអាចផ្ញើចូល Telegram Group បានទេ!');
+    throw new Error(data.description || 'មិនអាចផ្ញើសារចូល Telegram Group បានទេ!');
   }
-
   return data;
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Send, Copy, Check, Settings, Bot, ExternalLink, 
   ChevronDown, ChevronUp, AlertCircle, CheckCircle2, 
-  Loader2, Share2, FileText, MessageSquare 
+  Loader2, Share2, FileText, Image as ImageIcon, Info, HelpCircle
 } from 'lucide-react';
 import { 
   formatVisitTelegramText, 
@@ -35,8 +35,9 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
 
   const reportText = formatVisitTelegramText(visit);
   const hasBotConfigured = Boolean(botSettings.botToken && botSettings.chatId);
+  const photos = Array.isArray(visit.photos) ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) : [];
 
-  // 1. Direct Telegram Share (Opens Telegram App or Web to pick any group)
+  // 1. Direct Telegram Share (Fixed URL to prevent Bad Request)
   const handleOpenTelegramShare = () => {
     openTelegramShare(visit);
   };
@@ -60,7 +61,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
     setTimeout(() => setSettingsSavedNotice(false), 2500);
   };
 
-  // 4. Send report directly via Telegram Bot API
+  // 4. Send report directly via Telegram Bot API (with native photos!)
   const handleSendViaBot = async () => {
     if (!hasBotConfigured) {
       setShowSettings(true);
@@ -73,7 +74,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
       await sendVisitViaTelegramBot(visit, botSettings);
       setBotStatusMessage({
         type: 'success',
-        text: `បានផ្ញើរបាយការណ៍ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
+        text: `បានផ្ញើរបាយការណ៍ ${photos.length > 0 ? `រួមទាំងរូបភាព (${photos.length} សន្លឹក) ` : ''}ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
       });
     } catch (err) {
       setBotStatusMessage({
@@ -160,105 +161,122 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
             </div>
           )}
 
-          {/* Primary Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* Share via Telegram App / Web */}
-            <button
-              type="button"
-              onClick={handleOpenTelegramShare}
-              className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
-            >
-              <Send size={15} />
-              <span>ផ្ញើទៅ Telegram Group</span>
-            </button>
+          {/* Photos Preview Banner */}
+          {photos.length > 0 && (
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-800 flex items-center gap-1.5 text-xs">
+                  <ImageIcon size={14} className="text-emerald-600" />
+                  <span>រូបភាពជាក់ស្តែង ({photos.length} សន្លឹក)</span>
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  បង្ហាញជារូបភាពក្នុង Telegram ផ្ទាល់
+                </span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {photos.map((p, idx) => (
+                  <a key={idx} href={p} target="_blank" rel="noreferrer" className="w-16 h-12 rounded-lg border border-emerald-200 overflow-hidden shrink-0 group">
+                    <img src={p} alt={`Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
-            {/* Copy Report to Clipboard */}
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={`w-full font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 border transition-all active:scale-[0.98] ${
-                copied 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-              }`}
-            >
-              {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
-              <span>{copied ? 'បានចម្លងរួចរាល់!' : 'ចម្លងអត្ថបទរបាយការណ៍'}</span>
-            </button>
-          </div>
-
-          {/* Automatic Bot Delivery Option */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+          {/* SECTION 1: Automatic Bot Send (Supports Native Image Delivery) */}
+          <div className="p-3.5 bg-sky-50/60 border border-sky-200 rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                <Bot size={14} className="text-sky-600" />
-                <span>ផ្ញើស្វ័យប្រវត្តិតាម Telegram Bot</span>
+                <Bot size={15} className="text-sky-600" />
+                <span>ផ្ញើស្វ័យប្រវត្តិតាម Telegram Bot (រួមទាំងរូបភាព)</span>
               </span>
               <button
                 type="button"
                 onClick={() => setShowSettings(!showSettings)}
-                className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium hover:underline"
+                className="text-[11px] text-sky-700 hover:text-sky-900 flex items-center gap-1 font-bold hover:underline"
               >
                 <Settings size={12} />
-                <span>{showSettings ? 'លាក់ការកំណត់' : 'ការកំណត់ Bot'}</span>
+                <span>{showSettings ? 'លាក់ការកំណត់' : (hasBotConfigured ? 'កែប្រែការកំណត់' : 'កំណត់ Bot ឥឡូវនេះ')}</span>
                 {showSettings ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
             </div>
 
             {hasBotConfigured ? (
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <div className="text-[11px] text-slate-600">
-                  <span>Group: </span>
-                  <span className="font-bold text-slate-900 font-mono">
-                    {botSettings.groupName || botSettings.chatId}
-                  </span>
+              <div className="space-y-2">
+                <div className="text-[11px] text-slate-600 flex items-center justify-between">
+                  <span>Group គោលដៅ៖ <strong className="text-slate-900 font-mono">{botSettings.groupName || botSettings.chatId}</strong></span>
+                  {photos.length > 0 && <span className="text-emerald-700 font-bold">({photos.length} រូបភាព)</span>}
                 </div>
                 <button
                   type="button"
                   onClick={handleSendViaBot}
                   disabled={isSendingBot}
-                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 active:scale-[0.99]"
                 >
-                  {isSendingBot ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                  <span>{isSendingBot ? 'កំពុងផ្ញើ...' : 'ផ្ញើចូល Group ភ្លាមៗ'}</span>
+                  {isSendingBot ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  <span>
+                    {isSendingBot 
+                      ? 'កំពុងផ្ញើចូល Telegram Group...' 
+                      : `ផ្ញើចូល Telegram Group ភ្លាមៗ ${photos.length > 0 ? `(រួមទាំងរូបភាព ${photos.length} សន្លឹក)` : ''}`}
+                  </span>
                 </button>
               </div>
             ) : (
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                លោកអ្នកអាចកំណត់ Telegram Bot Token និង Chat ID ដើម្បីផ្ញើរបាយការណ៍ចូល Telegram Group ដោយស្វ័យប្រវត្តិតែមួយចុច។
-              </p>
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  ដើម្បីអាចផ្ញើ<strong>រូបភាពជាក់ស្តែងបង្ហាញក្នុង Telegram Group</strong> ផ្ទាល់បាន សូមកំណត់ Telegram Bot Token និង Group Chat ID ខាងក្រោម (កំណត់តែម្តងគត់ ប្រព័ន្ធនឹងចងចាំរហូត)៖
+                </p>
+                {!showSettings && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(true)}
+                    className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Settings size={13} />
+                    <span>បញ្ចូល Bot Token & Group ID ដើម្បីផ្ញើរូបភាព</span>
+                  </button>
+                )}
+              </div>
             )}
 
             {/* Collapsible Bot Settings Form */}
             {showSettings && (
-              <form onSubmit={handleSaveSettings} className="pt-2 border-t border-slate-200 space-y-2.5 text-xs">
+              <form onSubmit={handleSaveSettings} className="pt-2 border-t border-sky-200/80 space-y-2.5 text-xs bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
+                
+                {/* 3 Step Instruction Guide */}
+                <div className="bg-sky-50/70 p-2.5 rounded-lg border border-sky-200/70 text-[11px] text-slate-700 space-y-1">
+                  <div className="font-bold text-sky-900 flex items-center gap-1">
+                    <Info size={12} className="text-sky-600" />
+                    <span>របៀបបង្កើត និងយក Bot Token & Group Chat ID (៣ ជំហានងាយៗ):</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-0.5 text-[10px] text-slate-600 leading-relaxed">
+                    <li>បើក Telegram ស្វែងរក <b>@BotFather</b> រួចផ្ញើពាក្យ <code>/newbot</code> ដើម្បីយក <b>Bot Token</b></li>
+                    <li>Add Bot នោះចូលទៅក្នុង Telegram Group របស់អ្នក ហើយកំណត់សិទ្ធិជា <b>Admin</b></li>
+                    <li>យក <b>Group ID</b> (ឧ. <code>-100xxxxxxxxxx</code>) តាមរយៈ bot <b>@userinfobot</b> ឬ <b>@RawDataBot</b></li>
+                  </ol>
+                </div>
+
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Telegram Bot Token</label>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Telegram Bot Token *</label>
                   <input 
                     type="text" 
                     placeholder="ឧ. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
                     value={botSettings.botToken}
                     onChange={e => setBotSettings(prev => ({ ...prev, botToken: e.target.value }))}
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-mono text-slate-800"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-mono text-slate-800"
                   />
-                  <span className="text-[10px] text-slate-400 block mt-0.5">
-                    បង្កើត និងយកចេញពី @BotFather លើ Telegram
-                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Group Chat ID</label>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Group Chat ID *</label>
                     <input 
                       type="text" 
                       placeholder="ឧ. -1001234567890"
                       value={botSettings.chatId}
                       onChange={e => setBotSettings(prev => ({ ...prev, chatId: e.target.value }))}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-mono text-slate-800"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-mono text-slate-800"
                     />
-                    <span className="text-[10px] text-slate-400 block mt-0.5">
-                      Chat ID របស់ Telegram Group
-                    </span>
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">ឈ្មោះ Group (សម្គាល់)</label>
@@ -267,7 +285,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
                       placeholder="ឧ. ក្រុមការងារចុះចំការ"
                       value={botSettings.groupName}
                       onChange={e => setBotSettings(prev => ({ ...prev, groupName: e.target.value }))}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs text-slate-800"
                     />
                   </div>
                 </div>
@@ -301,6 +319,43 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
             )}
           </div>
 
+          {/* SECTION 2: Share via Browser Link / Copy Text */}
+          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+            <span className="font-bold text-slate-700 block text-xs">
+              ជម្រើសចែករំលែកផ្សេងទៀត៖
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Share via Telegram App / Web (Fixed from Bad Request) */}
+              <button
+                type="button"
+                onClick={handleOpenTelegramShare}
+                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-[0.98]"
+              >
+                <Send size={14} />
+                <span>ផ្ញើតាម Telegram Share Link</span>
+              </button>
+
+              {/* Copy Full Report Text */}
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={`w-full font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 border transition-all active:scale-[0.98] ${
+                  copied 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                <span>{copied ? 'បានចម្លងរួចរាល់!' : 'ចម្លងអត្ថបទរបាយការណ៍'}</span>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-400 leading-normal">
+              * ចំណាំ៖ Telegram Share Link តាម Browser គាំទ្រតែអត្ថបទ។ ដើម្បីផ្ញើបង្ហាញរូបភាពជាក់ស្តែងផ្ទាល់ សូមប្រើប៊ូតុង Bot ខាងលើ។
+            </p>
+          </div>
+
           {/* Report Text Live Preview */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-slate-600">
@@ -313,7 +368,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
               </span>
             </div>
 
-            <div className="p-3 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl border border-slate-800 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
+            <div className="p-3 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl border border-slate-800 max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
               {reportText}
             </div>
           </div>
