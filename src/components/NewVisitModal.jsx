@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
-import { MapPin, Camera, X, Loader2, UserPlus, CheckCircle2 } from 'lucide-react';
+import { MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, User, Users, Save, Navigation, Sprout, Ruler, Activity, AlertCircle, Package, Calendar, FileText, Edit, ExternalLink } from 'lucide-react';
 
 const CROP_SUGGESTIONS = ['ស្វាយចន្ទី', 'ស្រូវ', 'ទុរេន', 'ដំឡូងមី', 'ពោត', 'ស្វាយ', 'ម្រេច', 'កៅស៊ូ', 'បន្លែចម្រុះ'];
 
@@ -129,14 +129,14 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       }]).select().single();
 
       if (error) throw error;
-      alert("✅ បង្កើតអតិថិជនជោគជ័យ!");
+      alert("បង្កើតអតិថិជនជោគជ័យ!");
       onCustomerCreated(data);
       setSelectedCustomerId(data.id);
       if (data.primary_crop) setCropType(data.primary_crop);
       if (data.village || data.province) setLocationAddress(`${data.village || ''} ${data.province || ''}`.trim());
       setShowAddCustomer(false);
     } catch (err) {
-      alert("❌ មិនអាចបង្កើតអតិថិជនបានទេ: " + err.message);
+      alert("មិនអាចបង្កើតអតិថិជនបានទេ: " + err.message);
     }
   };
 
@@ -187,18 +187,18 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
       if (visitToEdit) {
         const { data, error } = await supabase.from('field_visits').update(payload).eq('id', visitToEdit.id).select().single();
         if (error) throw error;
-        alert("✅ បានកែប្រែកំណត់ត្រាជោគជ័យ!");
+        alert("បានកែប្រែកំណត់ត្រាជោគជ័យ!");
         onVisitCreated(data);
       } else {
         const { data, error } = await supabase.from('field_visits').insert([payload]).select().single();
         if (error) throw error;
-        alert("🎉 កត់ត្រាការចុះចំការបានជោគជ័យ!");
+        alert("កត់ត្រាការចុះចំការបានជោគជ័យ!");
         onVisitCreated(data);
       }
 
       onClose();
     } catch (err) {
-      alert("❌ មានបញ្ហាក្នុងការរក្សាទុក: " + err.message);
+      alert("មានបញ្ហាក្នុងការរក្សាទុក: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -213,7 +213,9 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
         {/* Header */}
         <div className={`flex items-center justify-between px-5 py-4 text-white ${visitToEdit ? 'bg-slate-900' : 'bg-emerald-600'}`}>
           <div className="flex items-center gap-2">
-            <span className="text-xl">{visitToEdit ? '⚙️' : '🌾'}</span>
+            <span className="p-1 rounded-lg bg-white/10">
+              {visitToEdit ? <Edit size={18} /> : <Sprout size={18} />}
+            </span>
             <h3 className="font-bold text-base">
               {visitToEdit ? 'កែប្រែកំណត់ត្រាចុះចំការ' : 'កត់ត្រាការចុះចំការថ្មី'}
             </h3>
@@ -228,7 +230,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
           {/* Staff Name */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">👤 ឈ្មោះបុគ្គលិកចុះផ្ទាល់ *</label>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+              <User size={13} className="text-slate-500" />
+              <span>ឈ្មោះបុគ្គលិកចុះផ្ទាល់ *</span>
+            </label>
             <input 
               type="text" 
               required 
@@ -242,7 +247,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
           {/* Customer Selection or Add Customer */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <div className="flex items-center justify-between mb-2">
-              <label className="font-bold text-slate-700">🧑‍🌾 អតិថិជន / ម្ចាស់ចំការ *</label>
+              <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                <Users size={13} className="text-slate-500" />
+                <span>អតិថិជន / ម្ចាស់ចំការ *</span>
+              </label>
               {!visitToEdit && (
                 <button 
                   type="button" 
@@ -299,9 +307,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                 <button 
                   type="button" 
                   onClick={handleCreateCustomer}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-xs transition-colors"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5"
                 >
-                  💾 រក្សាទុកអតិថិជនថ្មី
+                  <Save size={13} />
+                  <span>រក្សាទុកអតិថិជនថ្មី</span>
                 </button>
               </div>
             ) : (
@@ -337,9 +346,19 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                 type="button" 
                 onClick={handleGetGPS} 
                 disabled={gettingLocation}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors"
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-colors"
               >
-                {gettingLocation ? <Loader2 size={12} className="animate-spin" /> : '📍 ចាប់យក GPS ឡើងវិញ'}
+                {gettingLocation ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>កំពុងចាប់យក GPS...</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation size={12} />
+                    <span>ចាប់យក GPS ឡើងវិញ</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -350,9 +369,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
                   href={`https://www.google.com/maps?q=${latitude},${longitude}`} 
                   target="_blank" 
                   rel="noreferrer" 
-                  className="text-blue-600 underline font-sans text-[10px]"
+                  className="text-blue-600 underline font-sans text-[10px] inline-flex items-center gap-0.5"
                 >
-                  មើលលើ Maps ↗
+                  <span>មើលលើ Maps</span>
+                  <ExternalLink size={9} />
                 </a>
               </div>
             ) : (
@@ -371,7 +391,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
           {/* Farm Details */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">🌱 ប្រភេទដំណាំ</label>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <Sprout size={13} className="text-slate-500" />
+                <span>ប្រភេទដំណាំ</span>
+              </label>
               <input 
                 type="text" 
                 list="cropsList"
@@ -386,7 +409,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">📏 ទំហំដី (ហិកតា)</label>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <Ruler size={13} className="text-slate-500" />
+                <span>ទំហំដី (ហិកតា)</span>
+              </label>
               <input 
                 type="number" 
                 step="0.1" 
@@ -401,15 +427,18 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
           {/* Crop Status */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">🩺 ស្ថានភាពដំណាំ</label>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <Activity size={13} className="text-slate-500" />
+              <span>ស្ថានភាពដំណាំ</span>
+            </label>
             <div className="grid grid-cols-3 gap-2">
-              {['ល្អ 🌿', 'មធ្យម ⚠️', 'មានបញ្ហា/ជំងឺ 🚨'].map((status) => (
+              {['ល្អ', 'មធ្យម', 'មានបញ្ហា/ជំងឺ'].map((status) => (
                 <button
                   key={status}
                   type="button"
-                  onClick={() => setCropStatus(status.split(' ')[0])}
+                  onClick={() => setCropStatus(status)}
                   className={`py-1.5 px-2 rounded-lg font-bold text-xs text-center border transition-all ${
-                    cropStatus === status.split(' ')[0]
+                    cropStatus === status
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
@@ -422,7 +451,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
           {/* Issues & Products */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">🔍 បញ្ហាប្រឈមដែលជួបប្រទះ (បើមាន)</label>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <AlertCircle size={13} className="text-amber-500" />
+              <span>បញ្ហាប្រឈមដែលជួបប្រទះ (បើមាន)</span>
+            </label>
             <input 
               type="text" 
               value={issuesIdentified} 
@@ -433,7 +465,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">📦 ផលិតផលដែលបានណែនាំ / លក់ជូន</label>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <Package size={13} className="text-slate-500" />
+              <span>ផលិតផលដែលបានណែនាំ / លក់ជូន</span>
+            </label>
             <input 
               type="text" 
               value={productsRecommended} 
@@ -445,7 +480,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
 
           {/* Photos Upload & Existing Photos */}
           <div>
-            <label className="block font-bold text-slate-700 mb-1">📸 រូបភាពចំការ</label>
+            <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+              <Camera size={13} className="text-slate-500" />
+              <span>រូបភាពចំការ</span>
+            </label>
             
             {/* Existing Photos (if editing) */}
             {existingPhotos.length > 0 && (
@@ -505,7 +543,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
           {/* Follow-up Date & Notes */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">📅 ថ្ងៃត្រូវចុះម្តងទៀត</label>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <Calendar size={13} className="text-slate-500" />
+                <span>ថ្ងៃត្រូវចុះម្តងទៀត</span>
+              </label>
               <input 
                 type="date" 
                 value={followUpDate} 
@@ -514,7 +555,10 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
               />
             </div>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">📝 ចំណាំបន្ថែម</label>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <FileText size={13} className="text-slate-500" />
+                <span>ចំណាំបន្ថែម</span>
+              </label>
               <input 
                 type="text" 
                 value={notes} 
@@ -543,7 +587,7 @@ export default function NewVisitModal({ isOpen, onClose, onVisitCreated, custome
               ) : (
                 <>
                   <CheckCircle2 size={16} />
-                  <span>{visitToEdit ? '💾 រក្សាទុកការកែប្រែ' : '💾 រក្សាទុកកំណត់ត្រាចុះចំការ'}</span>
+                  <span>{visitToEdit ? 'រក្សាទុកការកែប្រែ' : 'រក្សាទុកកំណត់ត្រាចុះចំការ'}</span>
                 </>
               )}
             </button>

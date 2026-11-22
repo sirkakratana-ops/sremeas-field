@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
-import { User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, Table as TableIcon, LayoutGrid, X, CheckCircle2 } from 'lucide-react';
+import { User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, Table as TableIcon, LayoutGrid, X, CheckCircle2, ClipboardList } from 'lucide-react';
 
 export default function CustomerList({ customers, onOpenNewCustomer, onSelectCustomerForVisit, onCustomerUpdated, onCustomerDeleted }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,11 +52,11 @@ export default function CustomerList({ customers, onOpenNewCustomer, onSelectCus
       const { data, error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id).select().single();
       if (error) throw error;
 
-      alert("✅ កែប្រែព័ត៌មានអតិថិជនជោគជ័យ!");
+      alert("កែប្រែព័ត៌មានអតិថិជនជោគជ័យ!");
       onCustomerUpdated(data);
       setEditingCustomer(null);
     } catch (err) {
-      alert("❌ មិនអាចកែប្រែបានទេ: " + err.message);
+      alert("មិនអាចកែប្រែបានទេ: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -69,10 +69,10 @@ export default function CustomerList({ customers, onOpenNewCustomer, onSelectCus
       const { error } = await supabase.from('customers').delete().eq('id', cust.id);
       if (error) throw error;
 
-      alert("✅ បានលុបអតិថិជនរួចរាល់!");
+      alert("បានលុបអតិថិជនរួចរាល់!");
       onCustomerDeleted(cust.id);
     } catch (err) {
-      alert("❌ មិនអាចលុបបានទេ (អាចដោយសារមានទិន្នន័យចុះចំការភ្ជាប់ជាមួយគាត់): " + err.message);
+      alert("មិនអាចលុបបានទេ (អាចដោយសារមានទិន្នន័យចុះចំការភ្ជាប់ជាមួយគាត់): " + err.message);
     }
   };
 
@@ -291,9 +291,10 @@ export default function CustomerList({ customers, onOpenNewCustomer, onSelectCus
               <div className="pt-3 mt-3 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => onSelectCustomerForVisit(cust)}
-                  className="w-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200"
+                  className="w-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200 flex items-center justify-center gap-1.5"
                 >
-                  📝 កត់ត្រាការចុះជួប
+                  <ClipboardList size={13} />
+                  <span>កត់ត្រាការចុះជួប</span>
                 </button>
               </div>
             </div>
@@ -308,7 +309,8 @@ export default function CustomerList({ customers, onOpenNewCustomer, onSelectCus
             
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                <span>⚙️ កែប្រែព័ត៌មានអតិថិជន</span>
+                <Edit size={16} className="text-emerald-600" />
+                <span>កែប្រែព័ត៌មានអតិថិជន</span>
               </h3>
               <button onClick={() => setEditingCustomer(null)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X size={16} />

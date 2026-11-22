@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Plus, Map, ClipboardList, Users, RefreshCw } from 'lucide-react';
+import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout } from 'lucide-react';
 
 import VisitList from './components/VisitList';
 import MapView from './components/MapView';
@@ -67,11 +67,11 @@ export default function App() {
       const { error } = await supabase.from('field_visits').delete().eq('id', visit.id);
       if (error) throw error;
 
-      alert("✅ បានលុបកំណត់ត្រាចុះចំការរួចរាល់!");
+      alert("បានលុបកំណត់ត្រាចុះចំការរួចរាល់!");
       fetchVisits();
       if (selectedVisitDetail?.id === visit.id) setSelectedVisitDetail(null);
     } catch (err) {
-      alert("❌ មិនអាចលុបបានទេ: " + err.message);
+      alert("មិនអាចលុបបានទេ: " + err.message);
     }
   };
 
@@ -106,8 +106,8 @@ export default function App() {
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-xs">
-              🌾
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <Sprout size={20} />
             </div>
             <div>
               <h1 className="font-black text-sm md:text-base text-slate-900 leading-tight">ស្រែមាន - ចុះចំការ</h1>

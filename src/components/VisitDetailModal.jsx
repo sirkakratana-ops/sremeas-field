@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, MapPin, Calendar, User, Sprout, AlertTriangle, PackageCheck, FileText } from 'lucide-react';
+import { X, MapPin, Calendar, User, Sprout, AlertTriangle, PackageCheck, FileText, Phone, ExternalLink, Image } from 'lucide-react';
 
 export default function VisitDetailModal({ visit, onClose }) {
   if (!visit) return null;
@@ -12,7 +12,8 @@ export default function VisitDetailModal({ visit, onClose }) {
         <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white">
           <div>
             <h3 className="font-bold text-sm flex items-center gap-1.5">
-              <span>🌾 ព័ត៌មានលម្អិតនៃការចុះចំការ</span>
+              <FileText size={16} className="text-emerald-400" />
+              <span>ព័ត៌មានលម្អិតនៃការចុះចំការ</span>
             </h3>
             <p className="text-[11px] text-slate-300 font-mono mt-0.5">
               កាលបរិច្ឆេទ៖ {new Date(visit.visit_date).toLocaleDateString('km-KH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -40,8 +41,9 @@ export default function VisitDetailModal({ visit, onClose }) {
                 {visit.customers?.name || 'មិនស្គាល់'}
               </span>
               {visit.customers?.phone && (
-                <a href={`tel:${visit.customers.phone}`} className="text-emerald-700 text-[11px] font-mono hover:underline">
-                  📞 {visit.customers.phone}
+                <a href={`tel:${visit.customers.phone}`} className="text-emerald-700 text-[11px] font-mono hover:underline flex items-center gap-1 mt-0.5">
+                  <Phone size={10} />
+                  <span>{visit.customers.phone}</span>
                 </a>
               )}
             </div>
@@ -58,9 +60,10 @@ export default function VisitDetailModal({ visit, onClose }) {
                   href={`https://www.google.com/maps?q=${visit.latitude},${visit.longitude}`} 
                   target="_blank" 
                   rel="noreferrer" 
-                  className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-blue-100 transition-colors"
+                  className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-blue-100 transition-colors inline-flex items-center gap-1"
                 >
-                  បើក Google Maps ↗
+                  <span>បើក Google Maps</span>
+                  <ExternalLink size={9} />
                 </a>
               )}
             </div>
@@ -138,7 +141,10 @@ export default function VisitDetailModal({ visit, onClose }) {
           {/* Photos Gallery */}
           {visit.photos && visit.photos.length > 0 && (
             <div>
-              <span className="font-bold text-slate-700 block mb-2">📸 រូបភាពជាក់ស្តែង ({visit.photos.length} សន្លឹក)</span>
+              <span className="font-bold text-slate-700 flex items-center gap-1 mb-2">
+                <Image size={14} className="text-slate-500" />
+                <span>រូបភាពជាក់ស្តែង ({visit.photos.length} សន្លឹក)</span>
+              </span>
               <div className="grid grid-cols-2 gap-2">
                 {visit.photos.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-slate-200 aspect-video group">

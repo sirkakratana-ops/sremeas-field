@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, User, Sprout, Image, AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, LayoutGrid, Phone } from 'lucide-react';
+import { Search, MapPin, Calendar, User, Sprout, Image, AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, LayoutGrid, Phone, Package, ExternalLink } from 'lucide-react';
 
 export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,7 +50,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
               className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-bold"
             >
               {cropTypes.map((c, i) => (
-                <option key={i} value={c}>{c === 'All' ? '🌱 គ្រប់ដំណាំ' : c}</option>
+                <option key={i} value={c}>{c === 'All' ? 'គ្រប់ដំណាំ' : c}</option>
               ))}
             </select>
 
@@ -59,10 +59,10 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
               onChange={e => setFilterStatus(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-bold"
             >
-              <option value="All">🩺 គ្រប់ស្ថានភាព</option>
-              <option value="ល្អ">ល្អ 🌿</option>
-              <option value="មធ្យម">មធ្យម ⚠️</option>
-              <option value="មានបញ្ហា/ជំងឺ">មានបញ្ហា/ជំងឺ 🚨</option>
+              <option value="All">គ្រប់ស្ថានភាព</option>
+              <option value="ល្អ">ល្អ</option>
+              <option value="មធ្យម">មធ្យម</option>
+              <option value="មានបញ្ហា/ជំងឺ">មានបញ្ហា/ជំងឺ</option>
             </select>
           </div>
 
@@ -160,10 +160,11 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
 
                       {/* Crop & Size */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="font-bold text-slate-800 block">
-                          🌱 {visit.crop_type || '—'}
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          <Sprout size={13} className="text-emerald-600 shrink-0" />
+                          <span>{visit.crop_type || '—'}</span>
                         </span>
-                        <span className="text-slate-500 text-[11px]">
+                        <span className="text-slate-500 text-[11px] block pl-4">
                           {visit.farm_size_ha ? `${visit.farm_size_ha} ហិកតា` : '—'}
                         </span>
                       </td>
@@ -184,13 +185,15 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                       {/* Issues & Recommendations */}
                       <td className="py-2.5 px-3 max-w-[180px]">
                         {visit.issues_identified ? (
-                          <div className="text-rose-700 font-medium truncate" title={visit.issues_identified}>
-                            ⚠️ {visit.issues_identified}
+                          <div className="text-rose-700 font-medium truncate flex items-center gap-1" title={visit.issues_identified}>
+                            <AlertTriangle size={12} className="shrink-0 text-rose-500" />
+                            <span className="truncate">{visit.issues_identified}</span>
                           </div>
                         ) : null}
                         {visit.products_recommended ? (
-                          <div className="text-slate-600 truncate text-[11px]" title={visit.products_recommended}>
-                            📦 {visit.products_recommended}
+                          <div className="text-slate-600 truncate text-[11px] flex items-center gap-1" title={visit.products_recommended}>
+                            <Package size={12} className="shrink-0 text-slate-400" />
+                            <span className="truncate">{visit.products_recommended}</span>
                           </div>
                         ) : null}
                         {!visit.issues_identified && !visit.products_recommended && (
@@ -210,15 +213,18 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                             rel="noreferrer" 
                             className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline font-bold"
                           >
-                            <MapPin size={10} className="text-rose-500" /> Maps ↗
+                            <MapPin size={10} className="text-rose-500" />
+                            <span>Maps</span>
+                            <ExternalLink size={9} />
                           </a>
                         )}
                       </td>
 
                       {/* Staff */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[11px] border border-slate-200">
-                          👤 {visit.staff_name}
+                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[11px] border border-slate-200">
+                          <User size={11} className="text-slate-500" />
+                          <span>{visit.staff_name}</span>
                         </span>
                       </td>
 

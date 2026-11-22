@@ -116,13 +116,13 @@ export default function MapView({ visits, onSelectVisit }) {
             <strong style="font-size: 13px; color: ${isProblem ? '#dc2626' : '#047857'}; display: block; margin-bottom: 2px;">
               ${v.customers?.name || 'ម្ចាស់ចំការ'}
             </strong>
-            <span style="color: #475569; font-size: 11px;">🌱 ដំណាំ៖ <b>${v.crop_type || '—'}</b> ${v.farm_size_ha ? `(${v.farm_size_ha} ហ.ត)` : ''}</span><br/>
-            <span style="color: #475569;">👤 បុគ្គលិក៖ <b>${v.staff_name || '—'}</b></span><br/>
+            <span style="color: #475569; font-size: 11px;">ដំណាំ៖ <b>${v.crop_type || '—'}</b> ${v.farm_size_ha ? `(${v.farm_size_ha} ហ.ត)` : ''}</span><br/>
+            <span style="color: #475569;">បុគ្គលិក៖ <b>${v.staff_name || '—'}</b></span><br/>
             <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin: 4px 0; background: ${isProblem ? '#fee2e2; color: #991b1b;' : '#d1fae5; color: #065f46;'}">
               ស្ថានភាព៖ ${v.crop_status || '—'}
             </span><br/>
-            ${v.issues_identified ? `<div style="font-size: 10px; color: #b45309; background: #fffbeb; padding: 3px 6px; border-radius: 4px; margin-bottom: 4px;">⚠️ ${v.issues_identified}</div>` : ''}
-            <span style="color: #94a3b8; font-size: 10px;">📅 ${new Date(v.visit_date).toLocaleDateString('km-KH')}</span>
+            ${v.issues_identified ? `<div style="font-size: 10px; color: #b45309; background: #fffbeb; padding: 3px 6px; border-radius: 4px; margin-bottom: 4px;">${v.issues_identified}</div>` : ''}
+            <span style="color: #94a3b8; font-size: 10px;">${new Date(v.visit_date).toLocaleDateString('km-KH')}</span>
           </div>
         `;
 
@@ -155,7 +155,7 @@ export default function MapView({ visits, onSelectVisit }) {
             }`}
           >
             <Flame size={14} className={mapMode === 'heat' ? 'text-amber-300' : 'text-rose-500'} />
-            <span>Heat Map 🔥</span>
+            <span>Heat Map</span>
           </button>
 
           <button
@@ -167,7 +167,7 @@ export default function MapView({ visits, onSelectVisit }) {
             }`}
           >
             <MapPin size={14} />
-            <span>Pins 📍</span>
+            <span>Pins</span>
           </button>
 
           <button
@@ -179,7 +179,7 @@ export default function MapView({ visits, onSelectVisit }) {
             }`}
           >
             <Layers size={14} />
-            <span>ទាំងពីរ 🔀</span>
+            <span>ទាំងពីរ</span>
           </button>
         </div>
 
@@ -191,8 +191,8 @@ export default function MapView({ visits, onSelectVisit }) {
             onChange={e => setFilterType(e.target.value)}
             className="text-xs font-bold text-slate-700 bg-transparent py-1 focus:outline-none cursor-pointer"
           >
-            <option value="all">🌾 គ្រប់ចំការទាំងអស់ ({validVisits.length})</option>
-            <option value="issues_only">🚨 ចំការមានជំងឺ/បញ្ហា ({validVisits.filter(v => v.crop_status === 'មានបញ្ហា/ជំងឺ' || v.issues_identified).length})</option>
+            <option value="all">គ្រប់ចំការទាំងអស់ ({validVisits.length})</option>
+            <option value="issues_only">ចំការមានជំងឺ/បញ្ហា ({validVisits.filter(v => v.crop_status === 'មានបញ្ហា/ជំងឺ' || v.issues_identified).length})</option>
           </select>
         </div>
 
@@ -222,7 +222,10 @@ export default function MapView({ visits, onSelectVisit }) {
       {/* Empty State Overlay */}
       {displayVisits.length === 0 && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white/95 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl border border-slate-200 text-center space-y-1">
-          <p className="font-bold text-sm text-slate-800">📍 មិនទាន់មានទិន្នន័យ GPS នៅឡើយ</p>
+          <p className="font-bold text-sm text-slate-800 flex items-center justify-center gap-1">
+            <MapPin size={16} className="text-slate-400" />
+            <span>មិនទាន់មានទិន្នន័យ GPS នៅឡើយ</span>
+          </p>
           <p className="text-xs text-slate-500">ពេលបុគ្គលិកចុះចំការ ចុចប៊ូតុង "ចាប់យក GPS" ទិន្នន័យ Heatmap នឹងបង្ហាញលើផែនទីនេះដោយស្វ័យប្រវត្តិ។</p>
         </div>
       )}
