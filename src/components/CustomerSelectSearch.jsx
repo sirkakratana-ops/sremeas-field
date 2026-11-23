@@ -143,23 +143,23 @@ export default function CustomerSelectSearch({
       
       {/* 1. SELECTED CUSTOMER CARD VIEW */}
       {selectedCustomer && !isOpen ? (
-        <div className="bg-emerald-50/70 border border-emerald-300 rounded-xl p-3 shadow-2xs space-y-2">
+        <div className="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-3.5 sm:p-3 shadow-2xs space-y-2.5">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                  <User size={14} className="text-emerald-700" />
+                <span className="font-bold text-slate-900 text-base sm:text-sm flex items-center gap-1.5">
+                  <User size={16} className="text-emerald-700" />
                   <span>{selectedCustomer.name}</span>
                 </span>
                 
                 {selectedCustomer.gender && (
-                  <span className="text-[10px] text-slate-600 bg-white border border-slate-200 px-1.5 py-0.2 rounded font-medium">
+                  <span className="text-xs sm:text-[10px] text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md font-medium">
                     {selectedCustomer.gender}
                   </span>
                 )}
 
                 {selectedCustomer.customer_type && (
-                  <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold border ${
+                  <span className={`text-xs sm:text-[10px] px-2 py-0.5 rounded-full font-bold border ${
                     selectedCustomer.customer_type === 'ដេប៉ូ' 
                       ? 'bg-amber-100 text-amber-800 border-amber-200' 
                       : 'bg-emerald-100 text-emerald-800 border-emerald-200'
@@ -170,30 +170,30 @@ export default function CustomerSelectSearch({
 
                 {/* Branches */}
                 {parseBranches(selectedCustomer.branches, selectedCustomer.branch).map((b, idx) => (
-                  <span key={idx} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold border border-slate-200 flex items-center gap-0.5">
-                    <Building size={9} className="text-slate-500" />
+                  <span key={idx} className="text-xs sm:text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold border border-slate-200 flex items-center gap-0.5">
+                    <Building size={11} className="text-slate-500" />
                     <span>{b}</span>
                   </span>
                 ))}
               </div>
 
               {selectedCustomer.phone && (
-                <div className="text-[11px] text-emerald-800 font-mono flex items-center gap-1 mt-0.5">
-                  <Phone size={11} className="text-emerald-600" />
+                <div className="text-sm sm:text-xs text-emerald-800 font-mono font-bold flex items-center gap-1.5 mt-1">
+                  <Phone size={13} className="text-emerald-600" />
                   <span>{selectedCustomer.phone}</span>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {onResyncCustomerData && (
                 <button
                   type="button"
                   onClick={() => onResyncCustomerData(selectedCustomer)}
                   title="ទាញយកទីតាំង និងដំណាំពីអតិថិជននេះម្តងទៀត"
-                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                  className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs sm:text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors min-h-[34px] sm:min-h-[28px]"
                 >
-                  <RefreshCw size={11} />
+                  <RefreshCw size={13} />
                   <span className="hidden sm:inline">ទាញយកទិន្នន័យឡើងវិញ</span>
                 </button>
               )}
@@ -204,20 +204,20 @@ export default function CustomerSelectSearch({
                   setIsOpen(true);
                   setTimeout(() => searchInputRef.current?.focus(), 50);
                 }}
-                className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs sm:text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors min-h-[34px] sm:min-h-[28px]"
               >
                 <span>ប្តូរ</span>
-                <ChevronDown size={11} />
+                <ChevronDown size={13} />
               </button>
             </div>
           </div>
 
           {/* Location & Crops Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1.5 border-t border-emerald-200/60">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-[11px] text-slate-600 pt-2 border-t border-emerald-200/60">
             
             {/* Address */}
-            <div className="flex items-start gap-1">
-              <MapPin size={12} className="text-rose-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-1.5">
+              <MapPin size={14} className="text-rose-500 shrink-0 mt-0.5" />
               <span className="truncate">
                 {[selectedCustomer.village, selectedCustomer.commune, selectedCustomer.district, formatProvince(selectedCustomer.province)]
                   .filter(Boolean)
@@ -226,22 +226,22 @@ export default function CustomerSelectSearch({
             </div>
 
             {/* GPS or Crops */}
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <div className="flex items-center gap-2 text-xs sm:text-[10px] text-slate-500">
               {selectedCustomer.latitude && selectedCustomer.longitude ? (
-                <span className="inline-flex items-center gap-1 text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-200">
-                  <CheckCircle2 size={10} className="text-emerald-600" />
+                <span className="inline-flex items-center gap-1 text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 font-bold">
+                  <CheckCircle2 size={12} className="text-emerald-600" />
                   <span>មាន GPS</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-slate-400">
-                  <MapPinOff size={10} />
+                  <MapPinOff size={12} />
                   <span>គ្មាន GPS</span>
                 </span>
               )}
 
               {selectedCustomer.primary_crop && (
-                <span className="inline-flex items-center gap-1 text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 truncate">
-                  <Sprout size={10} className="text-emerald-600 shrink-0" />
+                <span className="inline-flex items-center gap-1 text-slate-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200 truncate">
+                  <Sprout size={12} className="text-emerald-600 shrink-0" />
                   <span className="truncate">{selectedCustomer.primary_crop}</span>
                 </span>
               )}
@@ -251,9 +251,9 @@ export default function CustomerSelectSearch({
       ) : (
 
         /* 2. SEARCH INPUT & DROPDOWN */
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               ref={searchInputRef}
               type="text"
@@ -265,38 +265,38 @@ export default function CustomerSelectSearch({
               }}
               onFocus={() => setIsOpen(true)}
               placeholder="ស្វែងរកតាមឈ្មោះ, លេខទូរស័ព្ទ, ភូមិ, ឃុំ, ស្រុក, ខេត្ត..."
-              className="w-full pl-9 pr-20 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-2xs"
+              className="w-full pl-10 pr-20 py-2.5 sm:py-2 bg-white border border-slate-300 rounded-xl text-sm sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-2xs min-h-[46px] sm:min-h-[40px]"
             />
 
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {isSearchingRemote && (
-                <Loader2 size={13} className="animate-spin text-emerald-600" />
+                <Loader2 size={15} className="animate-spin text-emerald-600" />
               )}
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
-                  <X size={13} />
+                  <X size={15} />
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1.5 text-slate-400 hover:text-slate-700"
               >
-                <ChevronDown size={14} className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                <ChevronDown size={16} className={isOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
               </button>
             </div>
           </div>
 
           {/* Search Result Count & Quick-Add prompt */}
           {isOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden divide-y divide-slate-100 max-h-72 flex flex-col">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 max-h-80 flex flex-col">
               
               {/* Header inside dropdown */}
-              <div className="p-2 bg-slate-50 text-[11px] text-slate-500 flex items-center justify-between">
+              <div className="p-3 bg-slate-50 text-xs sm:text-[11px] text-slate-500 flex items-center justify-between">
                 <span>
                   {displayList.length > 0 
                     ? `បង្ហាញ ${displayList.length} នាក់ ${customers.length > displayList.length ? `(សរុប ${customers.length.toLocaleString()})` : ''}`
@@ -309,9 +309,9 @@ export default function CustomerSelectSearch({
                       setIsOpen(false);
                       onAddNewCustomerClick();
                     }}
-                    className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 hover:underline text-[11px]"
+                    className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1.5 hover:underline text-xs sm:text-[11px]"
                   >
-                    <UserPlus size={12} />
+                    <UserPlus size={14} />
                     <span>+ បន្ថែមថ្មី</span>
                   </button>
                 )}
@@ -330,62 +330,62 @@ export default function CustomerSelectSearch({
                       <div
                         key={cust.id}
                         onClick={() => handleChoose(cust)}
-                        className={`p-2.5 hover:bg-emerald-50/70 cursor-pointer transition-colors flex items-start justify-between gap-2 ${
+                        className={`p-3 sm:p-2.5 hover:bg-emerald-50/70 cursor-pointer transition-colors flex items-start justify-between gap-2.5 min-h-[54px] sm:min-h-[46px] ${
                           isSelected ? 'bg-emerald-50 text-emerald-900 font-semibold' : 'text-slate-700'
                         }`}
                       >
-                        <div className="space-y-0.5 min-w-0">
+                        <div className="space-y-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-800 text-xs truncate">
+                            <span className="font-bold text-slate-800 text-sm sm:text-xs truncate">
                               {cust.name}
                             </span>
                             {cust.gender && (
-                              <span className="text-[9px] px-1 py-0.1 bg-slate-100 text-slate-600 rounded">
+                              <span className="text-[10px] sm:text-[9px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
                                 {cust.gender}
                               </span>
                             )}
-                            <span className={`text-[9px] px-1.5 py-0.1 rounded-full font-bold ${
+                            <span className={`text-[10px] sm:text-[9px] px-2 py-0.2 rounded-full font-bold ${
                               cust.customer_type === 'ដេប៉ូ' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                             }`}>
                               {cust.customer_type || 'កសិករ'}
                             </span>
                             {branches.map((b, idx) => (
-                              <span key={idx} className="text-[9px] bg-slate-100 text-slate-700 px-1 py-0.1 rounded font-bold border border-slate-200 flex items-center gap-0.5">
-                                <Building size={8} className="text-slate-500" />
+                              <span key={idx} className="text-[10px] sm:text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold border border-slate-200 flex items-center gap-0.5">
+                                <Building size={9} className="text-slate-500" />
                                 <span>{b}</span>
                               </span>
                             ))}
                             {cust.phone && (
-                              <span className="font-mono text-[10px] text-slate-500">
+                              <span className="font-mono text-xs sm:text-[10px] text-slate-500 font-bold">
                                 {cust.phone}
                               </span>
                             )}
                           </div>
 
                           {addr && (
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1 truncate">
-                              <MapPin size={10} className="text-rose-400 shrink-0" />
+                            <div className="text-xs sm:text-[10px] text-slate-500 flex items-center gap-1 truncate">
+                              <MapPin size={12} className="text-rose-400 shrink-0" />
                               <span className="truncate">{addr}</span>
                             </div>
                           )}
 
                           {crops.length > 0 && (
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 pt-0.5 flex-wrap">
-                              <Sprout size={10} className="text-emerald-600 shrink-0" />
+                            <div className="flex items-center gap-1 text-xs sm:text-[10px] text-slate-500 pt-0.5 flex-wrap">
+                              <Sprout size={12} className="text-emerald-600 shrink-0" />
                               <span>{crops.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''}`).join(', ')}</span>
                             </div>
                           )}
                         </div>
 
                         {isSelected && (
-                          <Check size={15} className="text-emerald-600 shrink-0 mt-1" />
+                          <Check size={18} className="text-emerald-600 shrink-0 mt-1" />
                         )}
                       </div>
                     );
                   })
                 ) : (
-                  <div className="p-4 text-center text-slate-400 space-y-2">
-                    <p className="text-xs">រកមិនឃើញកសិករដែលត្រូវនឹង «{searchTerm}» ទេ</p>
+                  <div className="p-5 text-center text-slate-400 space-y-2.5">
+                    <p className="text-sm sm:text-xs">រកមិនឃើញកសិករដែលត្រូវនឹង «{searchTerm}» ទេ</p>
                     {onAddNewCustomerClick && (
                       <button
                         type="button"
@@ -393,9 +393,9 @@ export default function CustomerSelectSearch({
                           setIsOpen(false);
                           onAddNewCustomerClick();
                         }}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center gap-1.5 shadow-2xs"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 sm:px-3 sm:py-1.5 rounded-xl text-sm sm:text-xs inline-flex items-center gap-1.5 shadow-2xs min-h-[42px] sm:min-h-[36px]"
                       >
-                        <UserPlus size={13} />
+                        <UserPlus size={15} />
                         <span>បង្កើតកសិករថ្មីនេះភ្លាមៗ</span>
                       </button>
                     )}
@@ -404,11 +404,11 @@ export default function CustomerSelectSearch({
               </div>
 
               {/* Close footer button */}
-              <div className="p-1.5 bg-slate-50 flex justify-end">
+              <div className="p-2 bg-slate-50 flex justify-end">
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="text-slate-500 hover:text-slate-700 text-[11px] font-bold px-2 py-0.5 rounded"
+                  className="text-slate-500 hover:text-slate-700 text-xs sm:text-[11px] font-bold px-3 py-1 rounded-lg"
                 >
                   បិទផ្ទាំងស្វែងរក
                 </button>
