@@ -106,8 +106,8 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                 </div>
 
                 {/* Crop Type & Variety */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
+                  <div className="min-w-0">
                     <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1">
                       ប្រភេទដំណាំ *
                     </label>
@@ -126,7 +126,7 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                     </datalist>
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1">
                       ពូជ (Variety)
                     </label>
@@ -149,9 +149,9 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                 </div>
 
                 {/* Area, Tree Count, Age */}
-                <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-                  <div>
-                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1">
+                <div className="grid grid-cols-3 gap-2 sm:gap-2.5 min-w-0">
+                  <div className="min-w-0">
+                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1 truncate">
                       ផ្ទៃដី (ហ.ត)
                     </label>
                     <input
@@ -161,12 +161,12 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                       value={crop.farm_size_ha ?? ''}
                       onChange={e => handleUpdateCrop(idx, 'farm_size_ha', e.target.value)}
                       placeholder="ឧ. 3.5"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
                     />
                   </div>
 
-                  <div>
-                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1">
+                  <div className="min-w-0">
+                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1 truncate">
                       ចំនួនដើម
                     </label>
                     <input
@@ -175,12 +175,12 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                       value={crop.plant_count ?? ''}
                       onChange={e => handleUpdateCrop(idx, 'plant_count', e.target.value)}
                       placeholder="ឧ. 500"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
                     />
                   </div>
 
-                  <div>
-                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1">
+                  <div className="min-w-0">
+                    <label className="text-xs sm:text-[10px] text-slate-600 font-bold block mb-1 truncate">
                       អាយុដំណាំ
                     </label>
                     <input
@@ -188,7 +188,7 @@ export default function CropsEditor({ crops = [], onChange, title = "ដំណ�
                       value={crop.crop_age || ''}
                       onChange={e => handleUpdateCrop(idx, 'crop_age', e.target.value)}
                       placeholder="ឧ. 3 ឆ្នាំ"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 sm:px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[42px] sm:min-h-[36px]"
                     />
                   </div>
                 </div>

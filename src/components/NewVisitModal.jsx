@@ -95,11 +95,10 @@ export default function NewVisitModal({
   
   // Crops inspected in this visit
   const [visitCrops, setVisitCrops] = useState([]);
-  const [cropStatus, setCropStatus] = useState('ល្អ');
+  const [cropStatus, setCropStatus] = useState('');
   const [issuesIdentified, setIssuesIdentified] = useState('');
   const [productsRecommended, setProductsRecommended] = useState('');
-  const [farmerHistory, setFarmerHistory] = useState('ស្រែមាស');
-  const [followUpDate, setFollowUpDate] = useState('');
+  const [farmerHistory, setFarmerHistory] = useState('');
   const [notes, setNotes] = useState('');
 
   // Photos
@@ -147,17 +146,20 @@ export default function NewVisitModal({
       setLongitude(visitToEdit.longitude || null);
       setLocationAddress(visitToEdit.location_address || '');
       setVisitCrops(parseCrops(visitToEdit.crops, visitToEdit.crop_type, visitToEdit.farm_size_ha));
-      setCropStatus(visitToEdit.crop_status || 'ល្អ');
+      setCropStatus(visitToEdit.crop_status || '');
       setIssuesIdentified(visitToEdit.issues_identified || '');
       setProductsRecommended(visitToEdit.products_recommended || '');
+      
+      // Clean notes so that legacy [ប្រវត្តិប្រើប្រាស់]: prefix is not injected into notes
+      let rawNotes = visitToEdit.notes || '';
       let extractedHistory = visitToEdit.farmer_history || '';
-      if (!extractedHistory && visitToEdit.notes && visitToEdit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
-        const m = visitToEdit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
-        if (m) extractedHistory = m[1].trim();
+      if (rawNotes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+        const m = rawNotes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
+        if (!extractedHistory && m) extractedHistory = m[1].trim();
+        rawNotes = rawNotes.replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n]*\n?/gi, '').trim();
       }
-      setFarmerHistory(extractedHistory || 'ស្រែមាស');
-      setFollowUpDate(visitToEdit.follow_up_date || '');
-      setNotes(visitToEdit.notes || '');
+      setFarmerHistory(extractedHistory || '');
+      setNotes(rawNotes);
       setExistingPhotos(visitToEdit.photos || []);
       setPhotoFiles([]);
       setPhotoPreviews([]);
@@ -169,7 +171,8 @@ export default function NewVisitModal({
       setIsCheckingNewCustPhone(false);
       setPulledNotice('');
     } else {
-      setStaffName(currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
+      const initialStaff = currentUser?.name || localStorage.getItem('sremeas_staff_name') || '';
+      setStaffName(initialStaff);
       setBranch(currentUser?.branch || 'ការិយាល័យកណ្តាល');
       setTeamMembers([]);
       setSelectedCustomerId('');
@@ -179,11 +182,10 @@ export default function NewVisitModal({
       setVisitCrops([
         { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
       ]);
-      setCropStatus('ល្អ');
+      setCropStatus('');
       setIssuesIdentified('');
       setProductsRecommended('');
-      setFarmerHistory('ស្រែមាស');
-      setFollowUpDate('');
+      setFarmerHistory('');
       setNotes('');
       setExistingPhotos([]);
       setPhotoFiles([]);
@@ -504,14 +506,6 @@ export default function NewVisitModal({
       const primaryCropType = visitCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
       const totalHa = visitCrops.reduce((sum, c) => sum + (parseFloat(c.farm_size_ha) || 0), 0) || null;
 
-      // Combine notes with farmerHistory so it's persisted in notes column as well
-      let combinedNotes = notes.trim();
-      if (farmerHistory.trim()) {
-        combinedNotes = combinedNotes 
-          ? `[ប្រវត្តិប្រើប្រាស់]: ${farmerHistory.trim()}\n${combinedNotes}` 
-          : `[ប្រវត្តិប្រើប្រាស់]: ${farmerHistory.trim()}`;
-      }
-
       // 2. Full Visit Payload
       const payload = {
         staff_name: staffName.trim(),
@@ -524,13 +518,13 @@ export default function NewVisitModal({
         crop_type: primaryCropType,
         farm_size_ha: totalHa,
         crops: visitCrops,
-        crop_status: cropStatus.trim() || 'ល្អ',
+        crop_status: cropStatus.trim() || null,
         issues_identified: issuesIdentified.trim() || null,
         products_recommended: productsRecommended.trim() || null,
         farmer_history: farmerHistory.trim() || null,
-        follow_up_date: followUpDate || null,
+        follow_up_date: null,
         photos: allPhotos,
-        notes: combinedNotes || null
+        notes: notes.trim() || null
       };
 
       const savedData = await saveVisitToSupabase(payload, visitToEdit?.id);
@@ -583,8 +577,8 @@ export default function NewVisitModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl my-2 sm:my-8 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overflow-x-hidden">
+      <div className="relative w-full max-w-xl max-w-[calc(100vw-16px)] sm:max-w-xl my-2 sm:my-8 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         
         {/* Header */}
         <div className={`flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 text-white ${visitToEdit ? 'bg-slate-900' : 'bg-emerald-600'}`}>
@@ -618,11 +612,11 @@ export default function NewVisitModal({
         )}
 
         {/* Form Body */}
-        <div className="p-3.5 sm:p-5 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto space-y-4 text-sm sm:text-xs">
+        <div className="p-3.5 sm:p-5 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden space-y-4 text-sm sm:text-xs">
 
           {/* ===================== SECTION 1: STAFF & BRANCH ===================== */}
           <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2.5 min-w-0">
               
               {/* Staff Name */}
               <div>
@@ -793,41 +787,41 @@ export default function NewVisitModal({
             {showAddCustomer ? (
               /* Inline Add New Customer Form */
               <div className="space-y-3 pt-2.5 border-t border-slate-200">
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-3 gap-2.5 min-w-0">
                   <input 
                     type="text" 
                     placeholder="ឈ្មោះអតិថិជន *" 
                     value={newCustName} 
                     onChange={e => setNewCustName(e.target.value)}
-                    className="col-span-2 w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] font-bold"
+                    className="col-span-2 w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] font-bold min-w-0"
                   />
                   <select
                     value={newCustGender}
                     onChange={e => setNewCustGender(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px] min-w-0"
                   >
                     <option value="ប្រុស">ប្រុស</option>
                     <option value="ស្រី">ស្រី</option>
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
                   <select
                     value={newCustType}
                     onChange={e => setNewCustType(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px] min-w-0"
                   >
                     <option value="កសិករ">កសិករ</option>
                     <option value="ដេប៉ូ">ដេប៉ូ</option>
                     <option value="ផ្សេងៗ">ផ្សេងៗ</option>
                   </select>
-                  <div>
+                  <div className="min-w-0">
                     <input 
                       type="text" 
                       placeholder="លេខទូរស័ព្ទ (ឧ. 012 345 678)" 
                       value={newCustPhone} 
                       onChange={e => setNewCustPhone(e.target.value)}
-                      className={`w-full bg-white border rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs font-mono min-h-[44px] sm:min-h-[38px] transition-colors ${
+                      className={`w-full bg-white border rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs font-mono min-h-[44px] sm:min-h-[38px] min-w-0 transition-colors ${
                         newCustPhoneDuplicate 
                           ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500' 
                           : 'border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500'
@@ -922,30 +916,30 @@ export default function NewVisitModal({
                   title="ដំណាំរបស់អតិថិជនថ្មី"
                 />
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
                   <input 
                     type="text" 
                     placeholder="ភូមិ" 
                     value={newCustVillage} 
                     onChange={e => setNewCustVillage(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
                   />
                   <input 
                     type="text" 
                     placeholder="ឃុំ / សង្កាត់" 
                     value={newCustCommune} 
                     onChange={e => setNewCustCommune(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
                   <input 
                     type="text" 
                     placeholder="ស្រុក / ខណ្ឌ" 
                     value={newCustDistrict} 
                     onChange={e => setNewCustDistrict(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
                   />
                   <input 
                     type="text" 
@@ -954,7 +948,7 @@ export default function NewVisitModal({
                     value={newCustProvince} 
                     onChange={e => setNewCustProvince(e.target.value)}
                     onBlur={() => setNewCustProvince(prev => formatProvince(prev))}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
                   />
                   <datalist id="new-visit-khmer-provinces">
                     {CAMBODIA_PROVINCES.map(p => (
@@ -1125,83 +1119,87 @@ export default function NewVisitModal({
             title="ព័ត៌មានដំណាំដែលបានចុះពិនិត្យ (ទាញយកពីអតិថិជន)"
           />
 
-          {/* ===================== SECTION 5: CROP STATUS ===================== */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between text-sm sm:text-xs">
-              <span className="flex items-center gap-1.5">
-                <Activity size={15} className="text-slate-500" />
-                <span>ស្ថានភាពទូទៅនៃចម្ការ</span>
-              </span>
-              <span className="text-xs sm:text-[10px] text-slate-400 font-normal">
-                (ជ្រើសរើស ឬវាយបញ្ចូលលម្អិត)
-              </span>
-            </label>
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              {['ល្អ', 'មធ្យម', 'មានបញ្ហា/ជំងឺ'].map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setCropStatus(status)}
-                  className={`py-2.5 sm:py-2 px-2 rounded-xl font-bold text-sm sm:text-xs text-center border transition-all min-h-[44px] sm:min-h-[36px] ${
-                    cropStatus === status
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+          {/* ===================== SECTION 5: FIELD OBSERVATIONS, ISSUES, SOLUTIONS, HISTORY & NOTES ===================== */}
+          <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3.5">
+            <div className="flex items-center gap-2 font-bold text-slate-800 text-sm sm:text-xs pb-1.5 border-b border-slate-200">
+              <FileText size={16} className="text-emerald-600" />
+              <span>ព័ត៌មានស្ថានភាពចម្ការ & ដំណោះស្រាយ</span>
             </div>
-            <input 
-              type="text" 
-              value={cropStatus} 
-              onChange={e => setCropStatus(e.target.value)} 
-              placeholder="ឧ. ស្លឹកចាស់ល្អស្មើគ្នា តែមានសញ្ញាត្រួយ ចេញមកតិចតួច..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
-            />
-          </div>
 
-          {/* Issues & Products */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
-              <AlertCircle size={15} className="text-amber-500" />
-              <span>បញ្ហាប្រឈម</span>
-            </label>
-            <input 
-              type="text" 
-              value={issuesIdentified} 
-              onChange={e => setIssuesIdentified(e.target.value)} 
-              placeholder="ឧ. ពីងពាងក្រហម, កើតជំងឺតាមគល់, ចៃស្រកា..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
-            />
-          </div>
+            {/* 1. ស្ថានភាពទូទៅនៃចម្ការ */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                <Activity size={15} className="text-emerald-600" />
+                <span>ស្ថានភាពទូទៅនៃចម្ការ</span>
+              </label>
+              <input 
+                type="text" 
+                value={cropStatus} 
+                onChange={e => setCropStatus(e.target.value)} 
+                placeholder="ឧ. ស្លឹកចាស់ល្អស្មើគ្នា តែមានសញ្ញាត្រួយ ចេញមកតិចតួច..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              />
+            </div>
 
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
-              <Package size={15} className="text-slate-500" />
-              <span>ដំណោះស្រាយ (ផលិតផលណែនាំ / វិធានការ)</span>
-            </label>
-            <input 
-              type="text" 
-              value={productsRecommended} 
-              onChange={e => setProductsRecommended(e.target.value)} 
-              placeholder="ឧ. ផ្តាច់ទឹកបន្ត, បាញ់ ប៉ារីដា, ស្រោច កាឡាក់សុី, អាបា..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
-            />
-          </div>
+            {/* 2. បញ្ហាប្រឈម */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                <AlertCircle size={15} className="text-amber-500" />
+                <span>បញ្ហាប្រឈម</span>
+              </label>
+              <input 
+                type="text" 
+                value={issuesIdentified} 
+                onChange={e => setIssuesIdentified(e.target.value)} 
+                placeholder="ឧ. ពីងពាងក្រហម, កើតជំងឺតាមគល់, ចៃស្រកា..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              />
+            </div>
 
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
-              <FileText size={15} className="text-slate-500" />
-              <span>ប្រវត្តិប្រើប្រាស់របស់កសិករ</span>
-            </label>
-            <input 
-              type="text" 
-              value={farmerHistory} 
-              onChange={e => setFarmerHistory(e.target.value)} 
-              placeholder="ឧ. ស្រែមាស, ធ្លាប់ប្រើជី..., ធ្លាប់ប្រើថ្នាំ..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px]"
-            />
+            {/* 3. ដំណោះស្រាយ */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                <Package size={15} className="text-emerald-600" />
+                <span>ដំណោះស្រាយ (ផលិតផលណែនាំ / វិធានការ)</span>
+              </label>
+              <input 
+                type="text" 
+                value={productsRecommended} 
+                onChange={e => setProductsRecommended(e.target.value)} 
+                placeholder="ឧ. ផ្តាច់ទឹកបន្ត, បាញ់ ប៉ារីដា, ស្រោច កាឡាក់សុី, អាបា..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              />
+            </div>
+
+            {/* 4. ប្រវត្តិប្រើប្រាស់របស់កសិករ */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                <FileText size={15} className="text-slate-600" />
+                <span>ប្រវត្តិប្រើប្រាស់របស់កសិករ</span>
+              </label>
+              <input 
+                type="text" 
+                value={farmerHistory} 
+                onChange={e => setFarmerHistory(e.target.value)} 
+                placeholder="ឧ. ស្រែមាស, ធ្លាប់ប្រើជី..., ធ្លាប់ប្រើថ្នាំ..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              />
+            </div>
+
+            {/* 5. ចំណាំបន្ថែម (ទទេតាមលំនាំដើម មិនចាប់យកព័ត៌មានដែលមិនបានបញ្ចូលឡើយ) */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                <FileText size={15} className="text-slate-600" />
+                <span>ចំណាំបន្ថែម</span>
+              </label>
+              <textarea 
+                rows={2}
+                value={notes} 
+                onChange={e => setNotes(e.target.value)} 
+                placeholder="ចំណាំផ្សេងៗ (បើមាន)..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs resize-none"
+              />
+            </div>
           </div>
 
           {/* Photos Upload & Existing Photos */}
@@ -1304,35 +1302,6 @@ export default function NewVisitModal({
             <div className="text-xs sm:text-[10px] text-slate-500 flex items-center gap-1.5 mt-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
               <Clock size={14} className="text-amber-600 shrink-0" />
               <span>រូបភាពត្រូវបានបន្ថយទំហំស្វ័យប្រវត្តិដើម្បី Upload លឿន និងលុបចេញពីប្រព័ន្ធក្រោយរយៈពេល ៧ថ្ងៃ។</span>
-            </div>
-          </div>
-
-          {/* Follow-up Date & Notes */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
-                <Calendar size={15} className="text-slate-500" />
-                <span>ថ្ងៃត្រូវចុះម្តងទៀត</span>
-              </label>
-              <input 
-                type="date" 
-                value={followUpDate} 
-                onChange={e => setFollowUpDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
-                <FileText size={15} className="text-slate-500" />
-                <span>ចំណាំបន្ថែម</span>
-              </label>
-              <input 
-                type="text" 
-                value={notes} 
-                onChange={e => setNotes(e.target.value)}
-                placeholder="ចំណាំផ្សេងៗ..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px]"
-              />
             </div>
           </div>
 

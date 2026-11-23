@@ -240,14 +240,19 @@ export default function VisitDetailModal({ visit, onClose }) {
             </div>
           )}
 
-          {visit.notes && (
-            <div>
-              <span className="font-bold text-slate-600 flex items-center gap-1 mb-1">
-                <FileText size={12} /> ចំណាំបន្ថែម៖
-              </span>
-              <p className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 whitespace-pre-wrap">{visit.notes}</p>
-            </div>
-          )}
+          {/* Notes (clean up legacy [ប្រវត្តិប្រើប្រាស់]: prefix so unentered notes are not shown) */}
+          {(() => {
+            const cleanNotes = (visit.notes || '').replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n]*\n?/gi, '').trim();
+            if (!cleanNotes) return null;
+            return (
+              <div>
+                <span className="font-bold text-slate-600 flex items-center gap-1 mb-1">
+                  <FileText size={12} /> ចំណាំបន្ថែម៖
+                </span>
+                <p className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 whitespace-pre-wrap">{cleanNotes}</p>
+              </div>
+            );
+          })()}
 
           {/* Photos Gallery */}
           {visit.photos && visit.photos.length > 0 ? (

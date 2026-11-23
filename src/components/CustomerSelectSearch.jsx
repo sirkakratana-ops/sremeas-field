@@ -213,7 +213,7 @@ export default function CustomerSelectSearch({
           </div>
 
           {/* Location & Crops Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-[11px] text-slate-600 pt-2 border-t border-emerald-200/60">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0 text-xs sm:text-[11px] text-slate-600 pt-2 border-t border-emerald-200/60">
             
             {/* Address */}
             <div className="flex items-start gap-1.5">
