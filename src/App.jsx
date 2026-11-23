@@ -394,7 +394,7 @@ export default function App() {
       </main>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-2 px-2 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-1.5 px-2 shadow-lg">
         <button 
           onClick={() => setActiveTab('visits')}
           className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
@@ -413,6 +413,16 @@ export default function App() {
         >
           <BarChart3 size={18} />
           <span>របាយការណ៍</span>
+        </button>
+
+        {/* Center Primary Action: + ចុះចំការ */}
+        <button 
+          type="button"
+          onClick={handleOpenNewVisit}
+          className="flex flex-col items-center justify-center -mt-5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white w-12 h-12 rounded-full shadow-lg border-2 border-white transition-all shrink-0"
+          title="កត់ត្រាការចុះចំការថ្មី"
+        >
+          <Plus size={24} />
         </button>
 
         <button 

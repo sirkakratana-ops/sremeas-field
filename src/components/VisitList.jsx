@@ -3,7 +3,7 @@ import {
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
   LayoutGrid, Phone, Package, ExternalLink, Building, Users,
-  Send, UserCheck, X, Check, Filter, RotateCcw
+  Send, UserCheck, X, Check, Filter, RotateCcw, Plus
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
@@ -321,14 +321,35 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
             <div className="text-xs text-slate-500 font-bold">
               សរុប៖ <span className="text-slate-800">{filtered.length}</span> / {visits.length}
             </div>
+
+            {onOpenNewVisit && (
+              <button
+                type="button"
+                onClick={onOpenNewVisit}
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all"
+              >
+                <Plus size={14} />
+                <span>+ ចុះចំការថ្មី</span>
+              </button>
+            )}
           </div>
 
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
-          មិនមានកំណត់ត្រាចុះចំការត្រូវនឹងលក្ខខណ្ឌស្វែងរកទេ
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs space-y-3">
+          <p>មិនមានកំណត់ត្រាចុះចំការត្រូវនឹងលក្ខខណ្ឌស្វែងរកទេ</p>
+          {onOpenNewVisit && (
+            <button
+              type="button"
+              onClick={onOpenNewVisit}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <Plus size={15} />
+              <span>+ កត់ត្រាការចុះចំការថ្មី</span>
+            </button>
+          )}
         </div>
       ) : viewMode === 'table' ? (
 

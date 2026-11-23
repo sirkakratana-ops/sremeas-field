@@ -552,8 +552,6 @@ export default function NewVisitModal({
     }
   };
 
-  if (!isOpen) return null;
-
   // Filter available colleagues from staff members (exclude primary staff name)
   const availableColleagues = staffMembers.filter(s => s.name !== staffName);
 
@@ -581,6 +579,8 @@ export default function NewVisitModal({
       setBranch(matched.branch);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
