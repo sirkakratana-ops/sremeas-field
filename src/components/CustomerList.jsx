@@ -4,10 +4,10 @@ import {
   User, Phone, MapPin, Sprout, Search, Plus, Edit, Trash2, 
   Table as TableIcon, LayoutGrid, X, CheckCircle2, ClipboardList,
   Navigation, Loader2, ExternalLink, Store, UserCheck, ChevronDown, ChevronUp,
-  Building, Check, AlertTriangle, AlertCircle
+  Building, Check, AlertTriangle, AlertCircle, Link
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -63,6 +63,8 @@ export default function CustomerList({
   const [formProvince, setFormProvince] = useState('');
   const [formLatitude, setFormLatitude] = useState(null);
   const [formLongitude, setFormLongitude] = useState(null);
+  const [mapLinkInput, setMapLinkInput] = useState('');
+  const [mapLinkStatus, setMapLinkStatus] = useState(null); // null | 'success' | 'short_url' | 'error'
   const [formCrops, setFormCrops] = useState([]);
   
   const [gettingGPS, setGettingGPS] = useState(false);
@@ -188,6 +190,8 @@ export default function CustomerList({
     setFormProvince('');
     setFormLatitude(null);
     setFormLongitude(null);
+    setMapLinkInput('');
+    setMapLinkStatus(null);
     setFormCrops([
       { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
     ]);
@@ -220,6 +224,8 @@ export default function CustomerList({
     setFormProvince(cust.province || '');
     setFormLatitude(cust.latitude || null);
     setFormLongitude(cust.longitude || null);
+    setMapLinkInput('');
+    setMapLinkStatus(null);
 
     const parsed = parseCrops(cust.crops, cust.primary_crop);
     setFormCrops(parsed.length > 0 ? parsed : [
@@ -267,6 +273,32 @@ export default function CustomerList({
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );
+  };
+
+  const handleMapLinkChange = (e) => {
+    const value = e.target.value;
+    setMapLinkInput(value);
+
+    if (!value.trim()) {
+      setMapLinkStatus(null);
+      return;
+    }
+
+    const coords = extractCoordinatesFromMapUrl(value);
+    if (coords) {
+      setFormLatitude(coords.lat.toString());
+      setFormLongitude(coords.lng.toString());
+      setMapLinkStatus('success');
+    } else if (isShortMapUrl(value)) {
+      setMapLinkStatus('short_url');
+    } else {
+      setMapLinkStatus('error');
+    }
+  };
+
+  const handleClearMapLink = () => {
+    setMapLinkInput('');
+    setMapLinkStatus(null);
   };
 
   const handleSaveCustomer = async (e) => {
@@ -1196,7 +1228,7 @@ export default function CustomerList({
               </div>
 
               {/* GPS Coordinates & Catch Button */}
-              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-700 flex items-center gap-1 text-[11px]">
                     <MapPin size={13} className="text-rose-500" />
@@ -1206,16 +1238,89 @@ export default function CustomerList({
                     type="button" 
                     onClick={handleGetGPS}
                     disabled={gettingGPS}
-                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-colors"
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 transition-colors disabled:opacity-50"
                   >
                     {gettingGPS ? <Loader2 size={11} className="animate-spin" /> : <Navigation size={11} />}
                     <span>{gettingGPS ? 'កំពុងចាប់...' : 'ចាប់យក GPS'}</span>
                   </button>
                 </div>
 
+                {/* Map Link Auto-Detect Box */}
+                <div className="space-y-1 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                  <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                    <Link size={12} className="text-emerald-600" />
+                    <span>បញ្ចូល Link Google Maps ឬ Apple Maps (ចាប់យក Latitude, Longitude ដោយស្វ័យប្រវត្តិ)</span>
+                  </label>
+                  <div className="relative flex items-center">
+                    <input 
+                      type="text" 
+                      value={mapLinkInput}
+                      onChange={handleMapLinkChange}
+                      placeholder="Paste Link Google Maps, Apple Maps ឬកូអរដោនេ (ឧ. 11.5564, 104.9282)..."
+                      className={`w-full bg-slate-50 border rounded-lg pl-2.5 pr-8 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 font-sans transition-all ${
+                        mapLinkStatus === 'success' 
+                          ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/20' 
+                          : mapLinkStatus === 'short_url'
+                            ? 'border-amber-400 bg-amber-50/30'
+                            : mapLinkStatus === 'error'
+                              ? 'border-rose-300 bg-rose-50/20'
+                              : 'border-slate-300 focus:bg-white focus:border-emerald-500'
+                      }`}
+                    />
+                    {mapLinkInput && (
+                      <button
+                        type="button"
+                        onClick={handleClearMapLink}
+                        title="សម្អាត"
+                        className="absolute right-2 p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Real-time Status Feedback */}
+                  {mapLinkStatus === 'success' && (
+                    <div className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 pt-0.5">
+                      <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                      <span>បានចាប់យកកូអរដោនេជោគជ័យ: Lat: {formLatitude}, Long: {formLongitude}</span>
+                    </div>
+                  )}
+
+                  {mapLinkStatus === 'short_url' && (
+                    <div className="text-[10px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 space-y-1">
+                      <div className="font-bold flex items-center gap-1">
+                        <AlertCircle size={12} className="text-amber-600 shrink-0" />
+                        <span>Link នេះជា Short Link (maps.app.goo.gl) ដែលមិនមានលេខកូអរដោនេផ្ទាល់</span>
+                      </div>
+                      <div className="text-slate-600 flex items-center justify-between gap-2">
+                        <span>សូមចុចបើក Link ដើម្បី Copy Link ពេញ ឬ Copy កូអរដោនេមកដាក់</span>
+                        {mapLinkInput.startsWith('http') && (
+                          <a
+                            href={mapLinkInput}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-[10px] inline-flex items-center gap-1 shrink-0 transition-colors"
+                          >
+                            <span>បើកមើល Link</span>
+                            <ExternalLink size={9} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {mapLinkStatus === 'error' && (
+                    <div className="text-[10px] text-rose-600 flex items-center gap-1 pt-0.5">
+                      <AlertCircle size={12} className="shrink-0" />
+                      <span>មិនអាចស្វែងរកកូអរដោនេពី Link នេះទេ។ សូមពិនិត្យ Link ឡើងវិញ ឬវាយបញ្ចូលផ្ទាល់ក្នុងប្រអប់ខាងក្រោម។</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">Latitude</label>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">Latitude (រយៈទទឹង)</label>
                     <input 
                       type="number" 
                       step="any"
@@ -1226,7 +1331,7 @@ export default function CustomerList({
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">Longitude</label>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">Longitude (រយៈបណ្តោយ)</label>
                     <input 
                       type="number" 
                       step="any"
@@ -1239,7 +1344,7 @@ export default function CustomerList({
                 </div>
 
                 {formLatitude && formLongitude && (
-                  <div className="text-[10px] text-blue-600">
+                  <div className="text-[10px] text-blue-600 flex items-center justify-between pt-0.5">
                     <a 
                       href={`https://www.google.com/maps?q=${formLatitude},${formLongitude}`} 
                       target="_blank" 
@@ -1247,6 +1352,15 @@ export default function CustomerList({
                       className="underline font-bold inline-flex items-center gap-1"
                     >
                       <span>ផ្ទៀងផ្ទាត់លើ Google Maps</span>
+                      <ExternalLink size={9} />
+                    </a>
+                    <a 
+                      href={`https://maps.apple.com/?ll=${formLatitude},${formLongitude}&q=${encodeURIComponent(formName || 'ចំការ')}`} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="underline font-bold inline-flex items-center gap-1 text-slate-600 hover:text-slate-800"
+                    >
+                      <span>Apple Maps</span>
                       <ExternalLink size={9} />
                     </a>
                   </div>

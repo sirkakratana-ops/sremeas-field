@@ -4,11 +4,11 @@ import {
   MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, 
   User, Users, Save, Navigation, Sprout, Activity, 
   AlertCircle, Package, Calendar, FileText, Edit, ExternalLink,
-  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock
+  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock, Link
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
-import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES } from '../staffUtils';
+import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl } from '../staffUtils';
 import { compressMultipleImages, formatFileSize } from '../imageUtils';
 
 export default function NewVisitModal({ 
@@ -88,6 +88,8 @@ export default function NewVisitModal({
   // Visit Fields
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
+  const [mapLinkInput, setMapLinkInput] = useState('');
+  const [mapLinkStatus, setMapLinkStatus] = useState(null); // null | 'success' | 'short_url' | 'error'
   const [locationAddress, setLocationAddress] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
   
@@ -159,6 +161,8 @@ export default function NewVisitModal({
       setExistingPhotos(visitToEdit.photos || []);
       setPhotoFiles([]);
       setPhotoPreviews([]);
+      setMapLinkInput('');
+      setMapLinkStatus(null);
       setShowAddCustomer(false);
       setNewCustPhone('');
       setNewCustPhoneDuplicate(null);
@@ -185,6 +189,8 @@ export default function NewVisitModal({
       setPhotoFiles([]);
       setPhotoPreviews([]);
       setPhotoMeta([]);
+      setMapLinkInput('');
+      setMapLinkStatus(null);
       setIsCompressing(false);
       setShowAddCustomer(false);
       setNewCustPhone('');
@@ -257,6 +263,32 @@ export default function NewVisitModal({
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );
+  };
+
+  const handleMapLinkChange = (e) => {
+    const value = e.target.value;
+    setMapLinkInput(value);
+
+    if (!value.trim()) {
+      setMapLinkStatus(null);
+      return;
+    }
+
+    const coords = extractCoordinatesFromMapUrl(value);
+    if (coords) {
+      setLatitude(coords.lat);
+      setLongitude(coords.lng);
+      setMapLinkStatus('success');
+    } else if (isShortMapUrl(value)) {
+      setMapLinkStatus('short_url');
+    } else {
+      setMapLinkStatus('error');
+    }
+  };
+
+  const handleClearMapLink = () => {
+    setMapLinkInput('');
+    setMapLinkStatus(null);
   };
 
   // Team Member handling
@@ -943,6 +975,79 @@ export default function NewVisitModal({
                   </>
                 )}
               </button>
+            </div>
+
+            {/* Map Link Auto-Detect Box */}
+            <div className="space-y-1 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+              <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                <Link size={12} className="text-emerald-600" />
+                <span>បញ្ចូល Link Google Maps ឬ Apple Maps (ចាប់យក Latitude, Longitude ដោយស្វ័យប្រវត្តិ)</span>
+              </label>
+              <div className="relative flex items-center">
+                <input 
+                  type="text" 
+                  value={mapLinkInput}
+                  onChange={handleMapLinkChange}
+                  placeholder="Paste Link Google Maps, Apple Maps ឬកូអរដោនេ (ឧ. 11.5564, 104.9282)..."
+                  className={`w-full bg-slate-50 border rounded-lg pl-2.5 pr-8 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 font-sans transition-all ${
+                    mapLinkStatus === 'success' 
+                      ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/20' 
+                      : mapLinkStatus === 'short_url'
+                        ? 'border-amber-400 bg-amber-50/30'
+                        : mapLinkStatus === 'error'
+                          ? 'border-rose-300 bg-rose-50/20'
+                          : 'border-slate-300 focus:bg-white focus:border-emerald-500'
+                  }`}
+                />
+                {mapLinkInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearMapLink}
+                    title="សម្អាត"
+                    className="absolute right-2 p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Real-time Status Feedback */}
+              {mapLinkStatus === 'success' && latitude && longitude && (
+                <div className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 pt-0.5">
+                  <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                  <span>បានចាប់យកកូអរដោនេជោគជ័យ: Lat: {latitude.toFixed(6)}, Long: {longitude.toFixed(6)}</span>
+                </div>
+              )}
+
+              {mapLinkStatus === 'short_url' && (
+                <div className="text-[10px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1">
+                    <AlertCircle size={12} className="text-amber-600 shrink-0" />
+                    <span>Link នេះជា Short Link (maps.app.goo.gl) ដែលមិនមានលេខកូអរដោនេផ្ទាល់</span>
+                  </div>
+                  <div className="text-slate-600 flex items-center justify-between gap-2">
+                    <span>សូមចុចបើក Link ដើម្បី Copy Link ពេញ ឬ Copy កូអរដោនេមកដាក់</span>
+                    {mapLinkInput.startsWith('http') && (
+                      <a
+                        href={mapLinkInput}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-[10px] inline-flex items-center gap-1 shrink-0 transition-colors"
+                      >
+                        <span>បើកមើល Link</span>
+                        <ExternalLink size={9} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {mapLinkStatus === 'error' && (
+                <div className="text-[10px] text-rose-600 flex items-center gap-1 pt-0.5">
+                  <AlertCircle size={12} className="shrink-0" />
+                  <span>មិនអាចស្វែងរកកូអរដោនេពី Link នេះទេ។ សូមពិនិត្យ Link ឡើងវិញ។</span>
+                </div>
+              )}
             </div>
 
             {latitude && longitude ? (

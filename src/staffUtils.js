@@ -450,3 +450,107 @@ export function formatProvince(province) {
   return trimmed;
 }
 
+/**
+ * Extract Latitude and Longitude from Google Maps, Apple Maps, OpenStreetMap, Waze or raw coordinates string.
+ * Returns { lat: number, lng: number } or null.
+ */
+export function extractCoordinatesFromMapUrl(input) {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  let decoded = trimmed;
+  try {
+    decoded = decodeURIComponent(trimmed);
+  } catch {}
+
+  // 1. DMS format: e.g. 11°33'23.0"N 104°55'41.5"E or 11d33m23.0sN 104d55m41.5sE
+  const dmsRegex = /(\d+[\D]+\d+[\D]+[\d.]+[\D]*[NSns])[\D]+(\d+[\D]+\d+[\D]+[\d.]+[\D]*[EWew])/;
+  const dmsMatch = decoded.match(dmsRegex);
+  if (dmsMatch) {
+    const parseDMS = (str) => {
+      const m = str.match(/(\d+)[\D]+(\d+)[\D]+([\d.]+)[\D]*([NSEWnsew])/);
+      if (!m) return null;
+      let val = parseFloat(m[1]) + (parseFloat(m[2]) / 60) + (parseFloat(m[3]) / 3600);
+      const dir = m[4].toUpperCase();
+      if (dir === 'S' || dir === 'W') val = -val;
+      return val;
+    };
+    const lat = parseDMS(dmsMatch[1]);
+    const lng = parseDMS(dmsMatch[2]);
+    if (lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 2. Google Maps @lat,lng: e.g. /@11.5564,104.9282
+  const atMatch = decoded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1]);
+    const lng = parseFloat(atMatch[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 3. OpenStreetMap ?mlat=...&mlon=...
+  const osmMatch = decoded.match(/[?&]mlat=(-?\d+\.\d+)&mlon=(-?\d+\.\d+)/i);
+  if (osmMatch) {
+    const lat = parseFloat(osmMatch[1]);
+    const lng = parseFloat(osmMatch[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 4. Query parameter q=, ll=, sll=, query=, coordinate=, destination=, daddr= (e.g. Google Maps, Apple Maps, Waze)
+  // handles optional "loc:" prefix (WhatsApp): q=loc:11.5564,104.9282
+  const paramMatch = decoded.match(/[?&](?:q|ll|sll|query|coordinate|destination|daddr)=(?:loc:)?(-?\d+\.\d+)(?:,|%2C|\+|\s+)(-?\d+\.\d+)/i);
+  if (paramMatch) {
+    const lat = parseFloat(paramMatch[1]);
+    const lng = parseFloat(paramMatch[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 5. Google Maps !3d<lat>!4d<lng>
+  const dataMatch = decoded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (dataMatch) {
+    const lat = parseFloat(dataMatch[1]);
+    const lng = parseFloat(dataMatch[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 6. /place/<lat>,<lng> or /place/<lat>+<lng>
+  const placeMatch = decoded.match(/\/place\/(-?\d+\.\d+)(?:,|%2C|\+|\s+)(-?\d+\.\d+)/i);
+  if (placeMatch) {
+    const lat = parseFloat(placeMatch[1]);
+    const lng = parseFloat(placeMatch[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+  }
+
+  // 7. Generic coordinate pair in string: lat [-90, 90], lng [-180, 180]
+  const genericMatch = decoded.match(/(-?\d{1,2}\.\d{3,16})[\s,;]+(-?\d{1,3}\.\d{3,16})/);
+  if (genericMatch) {
+    const v1 = parseFloat(genericMatch[1]);
+    const v2 = parseFloat(genericMatch[2]);
+    if (Math.abs(v1) <= 90 && Math.abs(v2) <= 180) {
+      return { lat: Number(v1.toFixed(6)), lng: Number(v2.toFixed(6)) };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if the input is a short link from Google Maps (which doesn't contain raw coordinates)
+ */
+export function isShortMapUrl(input) {
+  if (!input || typeof input !== 'string') return false;
+  return /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(input.trim());
+}
+
+
