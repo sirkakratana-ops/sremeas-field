@@ -1,5 +1,5 @@
 // Telegram Share & Bot Utilities for Sremeas Field Reports
-import { parseCrops } from './staffUtils';
+import { parseCrops, formatProvince } from './staffUtils';
 
 /**
  * Format date in DD/MM/YYYY format
@@ -51,7 +51,7 @@ export function formatVisitTelegramText(visit) {
 
   // Location string
   const locStr = visit.location_address || 
-    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, visit.customers?.province]
+    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, formatProvince(visit.customers?.province)]
       .filter(Boolean)
       .join(', ') || 
     visit.customers?.village || 
@@ -125,7 +125,7 @@ export function formatVisitTelegramSummary(visit) {
   const cropsSummary = crops.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''}`).filter(Boolean).join(', ') || visit.crop_type || '—';
 
   const locStr = visit.location_address || 
-    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, visit.customers?.province]
+    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, formatProvince(visit.customers?.province)]
       .filter(Boolean)
       .join(', ') || 
     visit.customers?.village || 

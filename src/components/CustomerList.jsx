@@ -7,7 +7,7 @@ import {
   Building, Check, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -298,6 +298,8 @@ export default function CustomerList({
     const primaryCropString = formCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
     const branchString = formBranches.join(', ') || null;
 
+    const cleanProvince = formatProvince(formProvince).trim() || null;
+
     const payload = {
       name: formName.trim(),
       gender: formGender || 'ប្រុស',
@@ -310,7 +312,7 @@ export default function CustomerList({
       village: formVillage.trim() || null,
       commune: formCommune.trim() || null,
       district: formDistrict.trim() || null,
-      province: formProvince.trim() || null,
+      province: cleanProvince,
       latitude: formLatitude ? parseFloat(formLatitude) : null,
       longitude: formLongitude ? parseFloat(formLongitude) : null
     };
@@ -330,7 +332,7 @@ export default function CustomerList({
               phone: formPhone.trim() || null,
               primary_crop: primaryCropString,
               village: formVillage.trim() || null,
-              province: formProvince.trim() || null
+              province: cleanProvince
             };
             const res3 = await supabase.from('customers').update(fallbackPayload).eq('id', editingCustomer.id).select().single();
             if (res3.error) throw res3.error;
@@ -355,7 +357,7 @@ export default function CustomerList({
               phone: formPhone.trim() || null,
               primary_crop: primaryCropString,
               village: formVillage.trim() || null,
-              province: formProvince.trim() || null
+              province: cleanProvince
             };
             const res3 = await supabase.from('customers').insert([fallbackPayload]).select().single();
             if (res3.error) throw res3.error;
@@ -526,7 +528,7 @@ export default function CustomerList({
               <tbody className="divide-y divide-slate-100">
                 {paginatedCustomers.map(cust => {
                   const hasGPS = cust.latitude && cust.longitude;
-                  const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
+                  const fullAddress = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean).join(', ');
                   const crops = parseCrops(cust.crops, cust.primary_crop);
                   const branches = parseBranches(cust.branches, cust.branch);
 
@@ -712,7 +714,7 @@ export default function CustomerList({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {paginatedCustomers.map(cust => {
             const hasGPS = cust.latitude && cust.longitude;
-            const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
+            const fullAddress = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean).join(', ');
             const crops = parseCrops(cust.crops, cust.primary_crop);
             const branches = parseBranches(cust.branches, cust.branch);
 
@@ -1018,7 +1020,7 @@ export default function CustomerList({
                         {duplicateCustomer.customer_type && <span className="text-slate-500 text-[11px] ml-1">[{duplicateCustomer.customer_type}]</span>}
                       </div>
                       <div className="text-slate-500 text-[11px] flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">
-                        <span>ទីតាំង: {[duplicateCustomer.village, duplicateCustomer.commune, duplicateCustomer.district, duplicateCustomer.province].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}</span>
+                        <span>ទីតាំង: {[duplicateCustomer.village, duplicateCustomer.commune, duplicateCustomer.district, formatProvince(duplicateCustomer.province)].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}</span>
                         <span>• សាខា: {duplicateCustomer.branch || (Array.isArray(duplicateCustomer.branches) ? duplicateCustomer.branches.join(', ') : 'ការិយាល័យកណ្តាល')}</span>
                         {duplicateCustomer.primary_crop && <span>• ដំណាំ: {duplicateCustomer.primary_crop}</span>}
                       </div>
@@ -1177,11 +1179,18 @@ export default function CustomerList({
                     <label className="text-[10px] text-slate-500 font-bold block mb-0.5">ខេត្ត / រាជធានី</label>
                     <input 
                       type="text" 
+                      list="khmer-provinces-list"
                       value={formProvince} 
                       onChange={e => setFormProvince(e.target.value)} 
-                      placeholder="ឈ្មោះខេត្ត..."
+                      onBlur={() => setFormProvince(prev => formatProvince(prev))}
+                      placeholder="ជ្រើសរើស ឬវាយឈ្មោះខេត្ត..."
                       className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800"
                     />
+                    <datalist id="khmer-provinces-list">
+                      {CAMBODIA_PROVINCES.map(p => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
               </div>
@@ -1273,52 +1282,6 @@ export default function CustomerList({
 
             </form>
 
-          </div>
-        </div>
-      )}
-
-      {/* Pagination Controls */}
-      {filtered.length > pageSize && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs text-xs">
-          <div className="text-slate-500 font-medium">
-            បង្ហាញទំព័រទី <span className="font-bold text-slate-800">{currentPage}</span> នៃ <span className="font-bold text-slate-800">{totalPages}</span> (បង្ហាញ {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filtered.length)} នៃសរុប {filtered.length} នាក់)
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(1)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
-            >
-              ដំបូង
-            </button>
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
-            >
-              ថយក្រោយ
-            </button>
-            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 font-bold rounded-lg border border-emerald-200">
-              {currentPage} / {totalPages}
-            </div>
-            <button
-              type="button"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
-            >
-              បន្ទាប់
-            </button>
-            <button
-              type="button"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(totalPages)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
-            >
-              ចុងក្រោយ
-            </button>
           </div>
         </div>
       )}

@@ -3,21 +3,68 @@ import {
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
   LayoutGrid, Phone, Package, ExternalLink, Building, Users,
-  Send
+  Send, UserCheck, X, Check, Filter, RotateCcw
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
+
+function getLocalDateString(d = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  return `${year}-${month}-${day}`;
+}
+
+function getVisitDateKey(visitDateVal) {
+  if (!visitDateVal) return '';
+  try {
+    const d = new Date(visitDateVal);
+    if (!isNaN(d.getTime())) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+  } catch {}
+  if (typeof visitDateVal === 'string' && visitDateVal.length >= 10) {
+    const match = visitDateVal.match(/^\d{4}-\d{2}-\d{2}/);
+    if (match) return match[0];
+  }
+  return '';
+}
 
 export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterDate, setFilterDate] = useState(''); // 'YYYY-MM-DD' or ''
+  const [filterStaff, setFilterStaff] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
   const [sharingVisit, setSharingVisit] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
   const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
+
+  const todayStr = useMemo(() => getLocalDateString(new Date()), []);
+  const yesterdayStr = useMemo(() => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return getLocalDateString(y);
+  }, []);
+
+  const staffNames = useMemo(() => {
+    const set = new Set();
+    if (currentUser?.name) {
+      set.add(currentUser.name.trim());
+    }
+    visits.forEach(v => {
+      if (v.staff_name && v.staff_name.trim()) set.add(v.staff_name.trim());
+      if (Array.isArray(v.team_members)) {
+        v.team_members.forEach(m => { if (m && m.trim()) set.add(m.trim()); });
+      }
+    });
+    return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [visits, currentUser]);
 
   const cropTypes = ['All', ...Array.from(new Set(
     visits.flatMap(v => {
@@ -50,19 +97,40 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
     const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop) || v.crop_type === filterCrop;
     const matchStatus = filterStatus === 'All' || v.crop_status === filterStatus;
 
-    return matchSearch && matchCrop && matchStatus;
+    // Filter by staff
+    const matchStaff = filterStaff === 'All' || 
+      (v.staff_name && v.staff_name.toLowerCase().trim() === filterStaff.toLowerCase().trim()) ||
+      (Array.isArray(v.team_members) && v.team_members.some(m => (m || '').toLowerCase().trim() === filterStaff.toLowerCase().trim())) ||
+      (typeof v.team_members === 'string' && v.team_members.toLowerCase().includes(filterStaff.toLowerCase().trim()));
+
+    // Filter by date
+    const vDateKey = getVisitDateKey(v.visit_date);
+    const vDateRaw = typeof v.visit_date === 'string' ? v.visit_date.slice(0, 10) : '';
+    const matchDate = !filterDate || vDateKey === filterDate || vDateRaw === filterDate;
+
+    return matchSearch && matchCrop && matchStatus && matchStaff && matchDate;
   });
 
   // Reset page to 1 on filter/search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterCrop, filterStatus]);
+  }, [searchTerm, filterCrop, filterStatus, filterStaff, filterDate]);
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
   const paginatedVisits = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filtered.slice(start, start + pageSize);
   }, [filtered, currentPage, pageSize]);
+
+  const hasActiveFilters = Boolean(filterDate || filterStaff !== 'All' || filterCrop !== 'All' || filterStatus !== 'All' || searchTerm);
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterCrop('All');
+    setFilterStatus('All');
+    setFilterDate('');
+    setFilterStaff('All');
+  };
 
   return (
     <div className="space-y-4">
@@ -80,7 +148,112 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Date & Staff Filters */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+          
+          {/* Date Filter & Quick Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
+              <Calendar size={13} className="text-emerald-600" />
+              កាលបរិច្ឆេទ:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setFilterDate('')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                !filterDate 
+                  ? 'bg-slate-800 text-white shadow-xs' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ទាំងអស់
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterDate(todayStr)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                filterDate === todayStr 
+                  ? 'bg-emerald-600 text-white shadow-xs' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ថ្ងៃនេះ
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterDate(yesterdayStr)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                filterDate === yesterdayStr 
+                  ? 'bg-emerald-600 text-white shadow-xs' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ម្សិលមិញ
+            </button>
+
+            {/* Custom Date Input */}
+            <div className="flex items-center gap-1">
+              <input 
+                type="date" 
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className={`bg-slate-50 border rounded-lg px-2 py-0.5 text-xs text-slate-800 font-medium ${
+                  filterDate ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/20' : 'border-slate-200'
+                }`}
+              />
+              {filterDate && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDate('')}
+                  title="លុបកាលបរិច្ឆេទ"
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-slate-100"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Staff Filter & My Visits Button */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {currentUser?.name && (
+              <button
+                type="button"
+                onClick={() => setFilterStaff(prev => prev === currentUser.name ? 'All' : currentUser.name)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  filterStaff === currentUser.name
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-600/30'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+                title="បង្ហាញតែកំណត់ត្រាចុះចំការរបស់ខ្ញុំ ដើម្បីងាយស្រួល Share ទៅ Telegram"
+              >
+                <UserCheck size={13} />
+                <span>កំណត់ត្រារបស់ខ្ញុំ</span>
+                {filterStaff === currentUser.name && <Check size={12} className="ml-0.5" />}
+              </button>
+            )}
+
+            <div className="flex items-center gap-1">
+              <User size={13} className="text-slate-400 shrink-0" />
+              <select
+                value={filterStaff}
+                onChange={e => setFilterStaff(e.target.value)}
+                className={`bg-slate-50 border rounded-lg px-2 py-1 text-xs text-slate-700 font-bold max-w-[160px] truncate ${
+                  filterStaff !== 'All' ? 'border-emerald-500 text-emerald-800 bg-emerald-50/30' : 'border-slate-200'
+                }`}
+              >
+                <option value="All">គ្រប់បុគ្គលិក ({staffNames.length - 1} នាក់)</option>
+                {staffNames.filter(name => name !== 'All').map((st, i) => (
+                  <option key={i} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
           
           <div className="flex flex-wrap items-center gap-2">
             <select 
@@ -103,6 +276,18 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
               <option value="មធ្យម">មធ្យម</option>
               <option value="មានបញ្ហា/ជំងឺ">មានបញ្ហា/ជំងឺ</option>
             </select>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors font-medium border border-rose-200"
+                title="សម្អាតការស្វែងរក និងតម្រងទាំងអស់"
+              >
+                <RotateCcw size={12} />
+                <span>សម្អាតតម្រង</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -134,7 +319,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
             </div>
 
             <div className="text-xs text-slate-500 font-bold">
-              សរុប៖ <span className="text-slate-800">{filtered.length}</span>
+              សរុប៖ <span className="text-slate-800">{filtered.length}</span> / {visits.length}
             </div>
           </div>
 

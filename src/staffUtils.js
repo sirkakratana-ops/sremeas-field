@@ -354,3 +354,99 @@ export async function checkDuplicateCustomerPhone(phone, excludeCustomerId = nul
 
   return null;
 }
+
+/**
+ * 25 Provinces & Capital of Cambodia in Khmer
+ */
+export const CAMBODIA_PROVINCES = [
+  'បន្ទាយមានជ័យ',
+  'បាត់ដំបង',
+  'កំពង់ចាម',
+  'កំពង់ឆ្នាំង',
+  'កំពង់ស្ពឺ',
+  'កំពង់ធំ',
+  'កំពត',
+  'កណ្តាល',
+  'កោះកុង',
+  'ក្រចេះ',
+  'មណ្ឌលគិរី',
+  'ភ្នំពេញ',
+  'ព្រះវិហារ',
+  'ព្រៃវែង',
+  'ពោធិ៍សាត់',
+  'រតនគិរី',
+  'សៀមរាប',
+  'ព្រះសីហនុ',
+  'ស្ទឹងត្រែង',
+  'ស្វាយរៀង',
+  'តាកែវ',
+  'ឧត្តរមានជ័យ',
+  'កែប',
+  'ប៉ៃលិន',
+  'ត្បូងឃ្មុំ'
+];
+
+/**
+ * English to Khmer Province Mapping
+ */
+export const PROVINCE_EN_TO_KH = {
+  'battambang': 'បាត់ដំបង',
+  'tbong khmum': 'ត្បូងឃ្មុំ',
+  'tboung khmum': 'ត្បូងឃ្មុំ',
+  'tbongkhmum': 'ត្បូងឃ្មុំ',
+  'kratie': 'ក្រចេះ',
+  'siem reap': 'សៀមរាប',
+  'siemreap': 'សៀមរាប',
+  'kampong cham': 'កំពង់ចាម',
+  'kampongcham': 'កំពង់ចាម',
+  'kampong thom': 'កំពង់ធំ',
+  'kampongthom': 'កំពង់ធំ',
+  'mondulkiri': 'មណ្ឌលគិរី',
+  'preah vihear': 'ព្រះវិហារ',
+  'preahvihear': 'ព្រះវិហារ',
+  'pursat': 'ពោធិ៍សាត់',
+  'oddar meanchey': 'ឧត្តរមានជ័យ',
+  'oddarmeanchey': 'ឧត្តរមានជ័យ',
+  'otdar meanchey': 'ឧត្តរមានជ័យ',
+  'pailin': 'ប៉ៃលិន',
+  'banteay meanchey': 'បន្ទាយមានជ័យ',
+  'banteaymeanchey': 'បន្ទាយមានជ័យ',
+  'ratanakiri': 'រតនគិរី',
+  'steung treng': 'ស្ទឹងត្រែង',
+  'stung treng': 'ស្ទឹងត្រែង',
+  'steungtreng': 'ស្ទឹងត្រែង',
+  'stungtreng': 'ស្ទឹងត្រែង',
+  'kep': 'កែប',
+  'koh kong': 'កោះកុង',
+  'kohkong': 'កោះកុង',
+  'prey veng': 'ព្រៃវែង',
+  'preyveng': 'ព្រៃវែង',
+  'kampong chhnang': 'កំពង់ឆ្នាំង',
+  'kampongchhnang': 'កំពង់ឆ្នាំង',
+  'kampong speu': 'កំពង់ស្ពឺ',
+  'kampongspeu': 'កំពង់ស្ពឺ',
+  'kandal': 'កណ្តាល',
+  'phnom penh': 'ភ្នំពេញ',
+  'phnompenh': 'ភ្នំពេញ',
+  'svay rieng': 'ស្វាយរៀង',
+  'svayrieng': 'ស្វាយរៀង',
+  'takeo': 'តាកែវ',
+  'kampot': 'កំពត',
+  'preah sihanouk': 'ព្រះសីហនុ',
+  'sihanoukville': 'ព្រះសីហនុ',
+  'sihanouk': 'ព្រះសីហនុ'
+};
+
+/**
+ * Format any province string to standard Khmer name
+ */
+export function formatProvince(province) {
+  if (!province) return '';
+  const trimmed = String(province).trim();
+  const lower = trimmed.toLowerCase();
+  if (PROVINCE_EN_TO_KH[lower]) {
+    return PROVINCE_EN_TO_KH[lower];
+  }
+  return trimmed;
+}
+

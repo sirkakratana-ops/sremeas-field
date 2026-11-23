@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
-import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone } from '../staffUtils';
+import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES } from '../staffUtils';
 import { compressMultipleImages, formatFileSize } from '../imageUtils';
 
 export default function NewVisitModal({ 
@@ -203,7 +203,7 @@ export default function NewVisitModal({
     if (!cust) return;
 
     // 1. Location Address
-    const addressParts = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean);
+    const addressParts = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean);
     const fullAddr = addressParts.join(', ');
     if (fullAddr) {
       setLocationAddress(fullAddr);
@@ -346,6 +346,7 @@ export default function NewVisitModal({
     const primaryCropString = newCustCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
     const primaryBranchString = newCustBranches.join(', ') || null;
 
+    const cleanProvince = formatProvince(newCustProvince).trim() || null;
     const payload = {
       name: newCustName.trim(),
       gender: newCustGender || 'ប្រុស',
@@ -356,7 +357,7 @@ export default function NewVisitModal({
       village: newCustVillage.trim() || null,
       commune: newCustCommune.trim() || null,
       district: newCustDistrict.trim() || null,
-      province: newCustProvince.trim() || null,
+      province: cleanProvince,
       primary_crop: primaryCropString,
       crops: newCustCrops,
       latitude: latitude || null,
@@ -377,7 +378,7 @@ export default function NewVisitModal({
             name: newCustName.trim(),
             phone: newCustPhone.trim() || null,
             village: newCustVillage.trim() || null,
-            province: newCustProvince.trim() || null,
+            province: cleanProvince,
             primary_crop: primaryCropString
           };
           const { data: fbData, error: fbErr } = await supabase.from('customers').insert([fallbackPayload]).select().single();
@@ -787,7 +788,7 @@ export default function NewVisitModal({
                         {newCustPhoneDuplicate.phone && <span className="font-mono text-rose-700 font-bold ml-1">({newCustPhoneDuplicate.phone})</span>}
                         {newCustPhoneDuplicate.customer_type && <span className="text-slate-500 text-[10px] ml-1">[{newCustPhoneDuplicate.customer_type}]</span>}
                         <div className="text-[10px] text-slate-500 mt-0.5">
-                          ទីតាំង: {[newCustPhoneDuplicate.village, newCustPhoneDuplicate.commune, newCustPhoneDuplicate.district, newCustPhoneDuplicate.province].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}
+                          ទីតាំង: {[newCustPhoneDuplicate.village, newCustPhoneDuplicate.commune, newCustPhoneDuplicate.district, formatProvince(newCustPhoneDuplicate.province)].filter(Boolean).join(', ') || 'គ្មានបញ្ជាក់'}
                           {newCustPhoneDuplicate.branch && ` • សាខា: ${newCustPhoneDuplicate.branch}`}
                         </div>
                       </div>
@@ -877,11 +878,18 @@ export default function NewVisitModal({
                   />
                   <input 
                     type="text" 
-                    placeholder="ខេត្ត / រាជធានី" 
+                    list="new-visit-khmer-provinces"
+                    placeholder="ជ្រើសរើស ឬវាយខេត្ត..." 
                     value={newCustProvince} 
                     onChange={e => setNewCustProvince(e.target.value)}
+                    onBlur={() => setNewCustProvince(prev => formatProvince(prev))}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800"
                   />
+                  <datalist id="new-visit-khmer-provinces">
+                    {CAMBODIA_PROVINCES.map(p => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <button 

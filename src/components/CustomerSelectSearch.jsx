@@ -5,7 +5,7 @@ import {
   MapPinOff, Building, Tag, Loader2
 } from 'lucide-react';
 import { supabase } from '../supabase';
-import { parseCrops, parseBranches, normalizePhone } from '../staffUtils';
+import { parseCrops, parseBranches, normalizePhone, formatProvince } from '../staffUtils';
 
 export default function CustomerSelectSearch({
   customers = [],
@@ -219,7 +219,7 @@ export default function CustomerSelectSearch({
             <div className="flex items-start gap-1">
               <MapPin size={12} className="text-rose-500 shrink-0 mt-0.5" />
               <span className="truncate">
-                {[selectedCustomer.village, selectedCustomer.commune, selectedCustomer.district, selectedCustomer.province]
+                {[selectedCustomer.village, selectedCustomer.commune, selectedCustomer.district, formatProvince(selectedCustomer.province)]
                   .filter(Boolean)
                   .join(', ') || 'មិនទាន់មានអាសយដ្ឋាន'}
               </span>
@@ -324,7 +324,7 @@ export default function CustomerSelectSearch({
                     const isSelected = cust.id === selectedCustomerId;
                     const crops = parseCrops(cust.crops, cust.primary_crop);
                     const branches = parseBranches(cust.branches, cust.branch);
-                    const addr = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
+                    const addr = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean).join(', ');
 
                     return (
                       <div
