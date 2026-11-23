@@ -267,7 +267,6 @@ export default function NewVisitModal({
       setNewCustCrops([
         { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
       ]);
-      handleGetGPS();
     }
   }, [isOpen, visitToEdit, duplicateFrom, currentUser]);
 

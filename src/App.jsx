@@ -72,7 +72,7 @@ export default function App() {
       setStaffList(list);
       if (currentUser) {
         const freshUser = list.find(s => (s.id && s.id === currentUser.id) || (s.username && s.username === currentUser.username));
-        if (freshUser) {
+        if (freshUser && JSON.stringify(freshUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(freshUser);
           localStorage.setItem('sremeas_logged_in_user', JSON.stringify(freshUser));
         }
