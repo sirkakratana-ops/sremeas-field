@@ -10,7 +10,7 @@ import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
 import ReportsView from './components/ReportsView';
-import { getStaffList } from './staffUtils';
+import { getStaffList, hasPermission } from './staffUtils';
 import { deleteVisitPhotosFromStorage, cleanupExpiredVisitPhotos } from './imageUtils';
 
 export default function App() {
@@ -68,7 +68,16 @@ export default function App() {
 
   const fetchStaff = async () => {
     const list = await getStaffList(supabase);
-    if (list) setStaffList(list);
+    if (list) {
+      setStaffList(list);
+      if (currentUser) {
+        const freshUser = list.find(s => (s.id && s.id === currentUser.id) || (s.username && s.username === currentUser.username));
+        if (freshUser) {
+          setCurrentUser(freshUser);
+          localStorage.setItem('sremeas_logged_in_user', JSON.stringify(freshUser));
+        }
+      }
+    }
   };
 
   const fetchVisits = async () => {
@@ -138,26 +147,34 @@ export default function App() {
   };
 
   const handleOpenNewVisit = () => {
+    if (!canCreateVisit) {
+      return alert("អ្នកមិនមានសិទ្ធិកត់ត្រាការចុះចំការថ្មីទេ! សូមទាក់ទង Admin។");
+    }
     setVisitToEdit(null);
     setDuplicateFrom(null);
     setIsNewVisitOpen(true);
   };
 
   const handleEditVisit = (visit) => {
+    if (!canEditVisit) {
+      return alert("អ្នកមិនមានសិទ្ធិកែប្រែកំណត់ត្រាចុះចំការទេ! សូមទាក់ទង Admin។");
+    }
     setDuplicateFrom(null);
     setVisitToEdit(visit);
     setIsNewVisitOpen(true);
   };
 
   const handleDuplicateVisit = (visit) => {
+    if (!canCreateVisit) {
+      return alert("អ្នកមិនមានសិទ្ធិចម្លង ឬកត់ត្រាការចុះចំការថ្មីទេ! សូមទាក់ទង Admin។");
+    }
     setVisitToEdit(null);
     setDuplicateFrom(visit);
     setIsNewVisitOpen(true);
   };
 
   const handleDeleteVisit = async (visit) => {
-    const canDelete = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
-    if (!canDelete) {
+    if (!canDeleteVisit) {
       return alert("អ្នកមិនមានសិទ្ធិលុបកំណត់ត្រាចុះចំការទេ! សូមទាក់ទង Admin។");
     }
 
@@ -201,17 +218,54 @@ export default function App() {
   };
 
   const handleSelectCustomerForVisit = (cust) => {
+    if (!canCreateVisit) {
+      return alert("អ្នកមិនមានសិទ្ធិកត់ត្រាការចុះចំការថ្មីទេ! សូមទាក់ទង Admin។");
+    }
     setVisitToEdit(null);
     setDuplicateFrom(null);
     setIsNewVisitOpen(true);
   };
 
+  // Permission checks
+  const canViewVisits = hasPermission(currentUser, 'can_view_visits', true);
+  const canCreateVisit = hasPermission(currentUser, 'can_create_visit', true);
+  const canEditVisit = hasPermission(currentUser, 'can_edit_visit', true);
+  const canDeleteVisit = hasPermission(currentUser, 'can_delete_visit', false);
+
+  const canViewCustomers = hasPermission(currentUser, 'can_view_customers', true);
+  const canCreateCustomer = hasPermission(currentUser, 'can_create_customer', true);
+  const canEditCustomer = hasPermission(currentUser, 'can_edit_customer', true);
+  const canDeleteCustomer = hasPermission(currentUser, 'can_delete_customer', false);
+
+  const canViewStaff = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_view_staff', false) || Boolean(currentUser?.permissions?.can_manage_staff);
+  const canViewReports = hasPermission(currentUser, 'can_view_reports', true);
+  const canViewMap = hasPermission(currentUser, 'can_view_map', true);
+  const isAdmin = canViewStaff;
+
+  // Auto redirect if active tab is not permitted
+  useEffect(() => {
+    if (!currentUser) return;
+    if (activeTab === 'visits' && !canViewVisits) {
+      if (canViewCustomers) setActiveTab('customers');
+      else if (canViewReports) setActiveTab('reports');
+      else if (canViewMap) setActiveTab('map');
+      else if (canViewStaff) setActiveTab('admin');
+    } else if (activeTab === 'customers' && !canViewCustomers) {
+      if (canViewVisits) setActiveTab('visits');
+      else if (canViewReports) setActiveTab('reports');
+    } else if (activeTab === 'reports' && !canViewReports) {
+      if (canViewVisits) setActiveTab('visits');
+    } else if (activeTab === 'map' && !canViewMap) {
+      if (canViewVisits) setActiveTab('visits');
+    } else if (activeTab === 'admin' && !canViewStaff) {
+      if (canViewVisits) setActiveTab('visits');
+    }
+  }, [currentUser, activeTab, canViewVisits, canViewCustomers, canViewReports, canViewMap, canViewStaff]);
+
   // If not logged in, show Login Screen
   if (!currentUser) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
-
-  const isAdmin = currentUser.role === 'Admin' || Boolean(currentUser.permissions?.can_manage_staff);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans pb-16 md:pb-6">
@@ -262,13 +316,15 @@ export default function App() {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
 
-            <button 
-              onClick={handleOpenNewVisit}
-              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
-            >
-              <Plus size={15} />
-              <span>ចុះចំការថ្មី</span>
-            </button>
+            {canCreateVisit && (
+              <button 
+                onClick={handleOpenNewVisit}
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Plus size={15} />
+                <span>ចុះចំការថ្មី</span>
+              </button>
+            )}
 
             <button
               onClick={handleLogout}
@@ -285,47 +341,55 @@ export default function App() {
       {/* DESKTOP NAV TABS */}
       <div className="max-w-5xl w-full mx-auto px-4 pt-4 hidden md:block">
         <div className="flex bg-slate-200/80 p-1 rounded-xl w-fit">
-          <button 
-            onClick={() => setActiveTab('visits')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'visits' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ClipboardList size={14} />
-            <span>កំណត់ត្រាចុះចំការ ({visits.length})</span>
-          </button>
+          {canViewVisits && (
+            <button 
+              onClick={() => setActiveTab('visits')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'visits' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ClipboardList size={14} />
+              <span>កំណត់ត្រាចុះចំការ ({visits.length})</span>
+            </button>
+          )}
 
-          <button 
-            onClick={() => setActiveTab('reports')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'reports' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 size={14} className={activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500'} />
-            <span>របាយការណ៍ & ក្រាហ្វិក</span>
-          </button>
+          {canViewReports && (
+            <button 
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'reports' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 size={14} className={activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500'} />
+              <span>របាយការណ៍ & ក្រាហ្វិក</span>
+            </button>
+          )}
 
-          <button 
-            onClick={() => setActiveTab('map')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'map' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Map size={14} />
-            <span>ផែនទីចំការ (Heatmap)</span>
-          </button>
+          {canViewMap && (
+            <button 
+              onClick={() => setActiveTab('map')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'map' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Map size={14} />
+              <span>ផែនទីចំការ (Heatmap)</span>
+            </button>
+          )}
 
-          <button 
-            onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'customers' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Users size={14} />
-            <span>បញ្ជីអតិថិជន ({customers.length})</span>
-          </button>
+          {canViewCustomers && (
+            <button 
+              onClick={() => setActiveTab('customers')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'customers' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users size={14} />
+              <span>បញ្ជីអតិថិជន ({customers.length})</span>
+            </button>
+          )}
 
-          {isAdmin && (
+          {canViewStaff && (
             <button 
               onClick={() => setActiveTab('admin')}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -407,57 +471,67 @@ export default function App() {
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-1.5 px-2 shadow-lg">
-        <button 
-          onClick={() => setActiveTab('visits')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-            activeTab === 'visits' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <ClipboardList size={18} />
-          <span>កំណត់ត្រា</span>
-        </button>
+        {canViewVisits && (
+          <button 
+            onClick={() => setActiveTab('visits')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTab === 'visits' ? 'text-emerald-700' : 'text-slate-400'
+            }`}
+          >
+            <ClipboardList size={18} />
+            <span>កំណត់ត្រា</span>
+          </button>
+        )}
 
-        <button 
-          onClick={() => setActiveTab('reports')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-            activeTab === 'reports' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <BarChart3 size={18} />
-          <span>របាយការណ៍</span>
-        </button>
+        {canViewReports && (
+          <button 
+            onClick={() => setActiveTab('reports')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTab === 'reports' ? 'text-emerald-700' : 'text-slate-400'
+            }`}
+          >
+            <BarChart3 size={18} />
+            <span>របាយការណ៍</span>
+          </button>
+        )}
 
         {/* Center Primary Action: + ចុះចំការ */}
-        <button 
-          type="button"
-          onClick={handleOpenNewVisit}
-          className="flex flex-col items-center justify-center -mt-5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white w-12 h-12 rounded-full shadow-lg border-2 border-white transition-all shrink-0"
-          title="កត់ត្រាការចុះចំការថ្មី"
-        >
-          <Plus size={24} />
-        </button>
+        {canCreateVisit && (
+          <button 
+            type="button"
+            onClick={handleOpenNewVisit}
+            className="flex flex-col items-center justify-center -mt-5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white w-12 h-12 rounded-full shadow-lg border-2 border-white transition-all shrink-0 cursor-pointer"
+            title="កត់ត្រាការចុះចំការថ្មី"
+          >
+            <Plus size={24} />
+          </button>
+        )}
 
-        <button 
-          onClick={() => setActiveTab('map')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-            activeTab === 'map' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <Map size={18} />
-          <span>ផែនទី</span>
-        </button>
+        {canViewMap && (
+          <button 
+            onClick={() => setActiveTab('map')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTab === 'map' ? 'text-emerald-700' : 'text-slate-400'
+            }`}
+          >
+            <Map size={18} />
+            <span>ផែនទី</span>
+          </button>
+        )}
 
-        <button 
-          onClick={() => setActiveTab('customers')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-            activeTab === 'customers' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <Users size={18} />
-          <span>អតិថិជន</span>
-        </button>
+        {canViewCustomers && (
+          <button 
+            onClick={() => setActiveTab('customers')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTab === 'customers' ? 'text-emerald-700' : 'text-slate-400'
+            }`}
+          >
+            <Users size={18} />
+            <span>អតិថិជន</span>
+          </button>
+        )}
 
-        {isAdmin && (
+        {canViewStaff && (
           <button 
             onClick={() => setActiveTab('admin')}
             className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
@@ -490,6 +564,7 @@ export default function App() {
       <VisitDetailModal 
         visit={selectedVisitDetail}
         onDuplicateVisit={handleDuplicateVisit}
+        currentUser={currentUser}
         onClose={() => setSelectedVisitDetail(null)}
       />
 

@@ -4,12 +4,12 @@ import {
   PackageCheck, FileText, Phone, ExternalLink, Image,
   Building, Users, UserCheck, Send, Copy, Check, Clock
 } from 'lucide-react';
-import { parseCrops } from '../staffUtils';
+import { parseCrops, hasPermission } from '../staffUtils';
 import { copyVisitReportToClipboard } from '../telegramUtils';
 import { isVisitPhotoExpired } from '../imageUtils';
 import ShareVisitModal from './ShareVisitModal';
 
-export default function VisitDetailModal({ visit, onClose, onDuplicateVisit }) {
+export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, currentUser }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -289,7 +289,7 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit }) {
         {/* Modal Footer Actions */}
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {onDuplicateVisit && (
+            {onDuplicateVisit && hasPermission(currentUser, 'can_create_visit', true) && (
               <button
                 type="button"
                 onClick={() => {

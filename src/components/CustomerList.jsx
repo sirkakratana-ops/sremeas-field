@@ -7,7 +7,7 @@ import {
   Building, Check, AlertTriangle, AlertCircle, Link
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl, hasPermission } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -110,9 +110,11 @@ export default function CustomerList({
     };
   }, [formPhone, editingCustomer, isAddModalOpen, customers]);
 
-  // Check delete permission
-  const canDelete = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_customer);
-  const canEdit = currentUser?.role === 'Admin' || currentUser?.permissions?.can_edit_customer !== false;
+  // Check permissions
+  const canDelete = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_delete_customer', false);
+  const canEdit = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_edit_customer', true);
+  const canCreate = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_create_customer', true);
+  const canCreateVisit = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_create_visit', true);
 
   // Collect all unique crops across customers for filtering
   const allCropTypes = ['All', ...Array.from(new Set(
@@ -523,13 +525,15 @@ export default function CustomerList({
               សរុប៖ <span className="text-slate-900">{filtered.length} នាក់</span>
             </span>
 
-            <button 
-              onClick={handleOpenAdd}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
-            >
-              <Plus size={15} />
-              <span>ថែមអតិថិជន</span>
-            </button>
+            {canCreate && (
+              <button 
+                onClick={handleOpenAdd}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
+              >
+                <Plus size={15} />
+                <span>ថែមអតិថិជន</span>
+              </button>
+            )}
           </div>
 
         </div>
@@ -695,15 +699,17 @@ export default function CustomerList({
                         <div className="flex items-center justify-center gap-1">
                           
                           {/* New Visit Shortcut */}
-                          <button
-                            type="button"
-                            onClick={() => onSelectCustomerForVisit(cust)}
-                            title="កត់ត្រាការចុះជួប"
-                            className="px-2 py-1 text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 text-[11px] flex items-center gap-1"
-                          >
-                            <Plus size={12} />
-                            <span>ចុះជួប</span>
-                          </button>
+                          {canCreateVisit && (
+                            <button
+                              type="button"
+                              onClick={() => onSelectCustomerForVisit(cust)}
+                              title="កត់ត្រាការចុះជួប"
+                              className="px-2 py-1 text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus size={12} />
+                              <span>ចុះជួប</span>
+                            </button>
+                          )}
 
                           {/* Edit */}
                           {canEdit && (
@@ -878,15 +884,17 @@ export default function CustomerList({
                   </div>
                 </div>
 
-                <div className="pt-3 mt-3 border-t border-slate-100 flex justify-end">
-                  <button
-                    onClick={() => onSelectCustomerForVisit(cust)}
-                    className="w-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200 flex items-center justify-center gap-1.5"
-                  >
-                    <ClipboardList size={13} />
-                    <span>កត់ត្រាការចុះជួប</span>
-                  </button>
-                </div>
+                {canCreateVisit && (
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex justify-end">
+                    <button
+                      onClick={() => onSelectCustomerForVisit(cust)}
+                      className="w-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ClipboardList size={13} />
+                      <span>កត់ត្រាការចុះជួប</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -5,7 +5,7 @@ import {
   LayoutGrid, Phone, Package, ExternalLink, Building, Users,
   Send, UserCheck, X, Check, Filter, RotateCcw, Plus, Copy
 } from 'lucide-react';
-import { parseCrops } from '../staffUtils';
+import { parseCrops, hasPermission } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
 
 function getLocalDateString(d = new Date()) {
@@ -43,7 +43,10 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
-  const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
+  const canViewVisits = hasPermission(currentUser, 'can_view_visits', true);
+  const canCreateVisit = hasPermission(currentUser, 'can_create_visit', true);
+  const canEditVisit = hasPermission(currentUser, 'can_edit_visit', true);
+  const canDeleteVisit = hasPermission(currentUser, 'can_delete_visit', false);
 
   const todayStr = useMemo(() => getLocalDateString(new Date()), []);
   const yesterdayStr = useMemo(() => {
@@ -322,11 +325,11 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
               សរុប៖ <span className="text-slate-800">{filtered.length}</span> / {visits.length}
             </div>
 
-            {onOpenNewVisit && (
+            {onOpenNewVisit && canCreateVisit && (
               <button
                 type="button"
                 onClick={onOpenNewVisit}
-                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all"
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <Plus size={14} />
                 <span>+ ចុះចំការថ្មី</span>
@@ -340,11 +343,11 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
       {filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs space-y-3">
           <p>មិនមានកំណត់ត្រាចុះចំការត្រូវនឹងលក្ខខណ្ឌស្វែងរកទេ</p>
-          {onOpenNewVisit && (
+          {onOpenNewVisit && canCreateVisit && (
             <button
               type="button"
               onClick={onOpenNewVisit}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
               <Plus size={15} />
               <span>+ កត់ត្រាការចុះចំការថ្មី</span>
@@ -554,22 +557,24 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                           </button>
 
                           {/* Edit */}
-                          <button 
-                            type="button" 
-                            onClick={() => onEditVisit(visit)} 
-                            title="កែប្រែ"
-                            className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
-                          >
-                            <Edit size={13} />
-                          </button>
+                          {canEditVisit && (
+                            <button 
+                              type="button" 
+                              onClick={() => onEditVisit(visit)} 
+                              title="កែប្រែ"
+                              className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer"
+                            >
+                              <Edit size={13} />
+                            </button>
+                          )}
 
                           {/* Duplicate */}
-                          {onDuplicateVisit && (
+                          {onDuplicateVisit && canCreateVisit && (
                             <button 
                               type="button" 
                               onClick={() => onDuplicateVisit(visit)} 
                               title="ចម្លងកំណត់ត្រានេះ (Duplicate)"
-                              className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                              className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 cursor-pointer"
                             >
                               <Copy size={13} />
                             </button>
@@ -581,7 +586,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                               type="button" 
                               onClick={() => onDeleteVisit(visit)} 
                               title="លុប"
-                              className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+                              className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 cursor-pointer"
                             >
                               <Trash2 size={13} />
                             </button>
@@ -762,20 +767,22 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                     >
                       <Eye size={13} />
                     </button>
-                    <button 
-                      type="button" 
-                      onClick={() => onEditVisit(visit)} 
-                      title="កែប្រែ"
-                      className="p-1.5 text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                    >
-                      <Edit size={13} />
-                    </button>
-                    {onDuplicateVisit && (
+                    {canEditVisit && (
+                      <button 
+                        type="button" 
+                        onClick={() => onEditVisit(visit)} 
+                        title="កែប្រែ"
+                        className="p-1.5 text-blue-600 hover:text-blue-800 bg-white hover:bg-blue-50 rounded-lg transition-colors border border-blue-200 cursor-pointer"
+                      >
+                        <Edit size={13} />
+                      </button>
+                    )}
+                    {onDuplicateVisit && canCreateVisit && (
                       <button 
                         type="button" 
                         onClick={() => onDuplicateVisit(visit)} 
                         title="ចម្លងកំណត់ត្រានេះ (Duplicate)"
-                        className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                        className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200 cursor-pointer"
                       >
                         <Copy size={13} />
                       </button>
@@ -785,7 +792,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                         type="button" 
                         onClick={() => onDeleteVisit(visit)} 
                         title="លុប"
-                        className="p-1.5 text-rose-600 hover:text-rose-800 bg-white hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                        className="p-1.5 text-rose-600 hover:text-rose-800 bg-white hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 cursor-pointer"
                       >
                         <Trash2 size={13} />
                       </button>

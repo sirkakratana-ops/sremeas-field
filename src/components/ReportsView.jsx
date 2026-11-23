@@ -5,7 +5,7 @@ import {
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
   Send, ExternalLink, ChevronDown, Award
 } from 'lucide-react';
-import { parseCrops, formatProvince, formatDateDMY } from '../staffUtils';
+import { parseCrops, formatProvince, formatDateDMY, hasPermission } from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
 export default function ReportsView({ 
@@ -35,6 +35,8 @@ export default function ReportsView({
 
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState(null);
+
+  const canExport = hasPermission(currentUser, 'can_export_reports', true);
 
   // Helper: Format Date to YYYY-MM-DD in local time
   const formatYMD = (d) => {
@@ -599,31 +601,35 @@ ${topStaffSummary || '—'}
 
         {/* Action Buttons: Print, Excel, Telegram */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-            title="បោះពុម្ព ឬរក្សាទុកជា PDF"
-          >
-            <Printer size={14} />
-            <span>បោះពុម្ព / PDF</span>
-          </button>
+          {canExport && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="បោះពុម្ព ឬរក្សាទុកជា PDF"
+              >
+                <Printer size={14} />
+                <span>បោះពុម្ព / PDF</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-            title="ទាញយកទិន្នន័យជាឯកសារ Excel / CSV"
-          >
-            <FileSpreadsheet size={14} />
-            <span>ទាញយក Excel</span>
-          </button>
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="ទាញយកទិន្នន័យជាឯកសារ Excel / CSV"
+              >
+                <FileSpreadsheet size={14} />
+                <span>ទាញយក Excel</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
             onClick={handleSendTelegramSummary}
             disabled={isSendingTelegram}
-            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
             title="ផ្ញើរបាយការណ៍សង្ខេបទៅកាន់ Telegram Group"
           >
             <Send size={14} />

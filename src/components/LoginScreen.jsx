@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
 import { Sprout, Lock, User, ShieldCheck, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { ADMIN_FULL_PERMISSIONS } from '../staffUtils';
 
 export default function LoginScreen({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
@@ -71,13 +72,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           username: 'admin',
           password: 'admin123',
           status: 'សកម្ម',
-          permissions: {
-            can_manage_staff: true,
-            can_edit_customer: true,
-            can_delete_customer: true,
-            can_delete_visit: true,
-            can_export_reports: true,
-          }
+          permissions: { ...ADMIN_FULL_PERMISSIONS }
         });
         localStorage.setItem('sremeas_local_staff', JSON.stringify(localStaffList));
       }

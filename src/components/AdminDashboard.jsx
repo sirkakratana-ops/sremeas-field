@@ -6,7 +6,7 @@ import {
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
   Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database
 } from 'lucide-react';
-import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT } from '../staffUtils';
+import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS } from '../staffUtils';
 import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
 
 // Default initial admin in case Supabase table is not yet migrated
@@ -22,13 +22,7 @@ const DEFAULT_INITIAL_ADMIN = {
   username: 'admin',
   password: 'admin123',
   status: 'សកម្ម',
-  permissions: {
-    can_manage_staff: true,
-    can_edit_customer: true,
-    can_delete_customer: true,
-    can_delete_visit: true,
-    can_export_reports: true,
-  },
+  permissions: { ...ADMIN_FULL_PERMISSIONS },
   created_at: new Date().toISOString()
 };
 
@@ -64,12 +58,68 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('សកម្ម');
 
-  // Permissions state
-  const [permManageStaff, setPermManageStaff] = useState(false);
-  const [permEditCustomer, setPermEditCustomer] = useState(true);
-  const [permDeleteCustomer, setPermDeleteCustomer] = useState(false);
-  const [permDeleteVisit, setPermDeleteVisit] = useState(false);
-  const [permExportReports, setPermExportReports] = useState(true);
+  // Permissions Matrix state for each list (Visits, Customers, Staff, Reports & Maps)
+  const [permVisitsView, setPermVisitsView] = useState(true);
+  const [permVisitsCreate, setPermVisitsCreate] = useState(true);
+  const [permVisitsEdit, setPermVisitsEdit] = useState(true);
+  const [permVisitsDelete, setPermVisitsDelete] = useState(false);
+
+  const [permCustomersView, setPermCustomersView] = useState(true);
+  const [permCustomersCreate, setPermCustomersCreate] = useState(true);
+  const [permCustomersEdit, setPermCustomersEdit] = useState(true);
+  const [permCustomersDelete, setPermCustomersDelete] = useState(false);
+
+  const [permStaffView, setPermStaffView] = useState(false);
+  const [permStaffCreate, setPermStaffCreate] = useState(false);
+  const [permStaffEdit, setPermStaffEdit] = useState(false);
+  const [permStaffDelete, setPermStaffDelete] = useState(false);
+
+  const [permReportsView, setPermReportsView] = useState(true);
+  const [permReportsExport, setPermReportsExport] = useState(true);
+  const [permMapView, setPermMapView] = useState(true);
+
+  // Quick permission helpers
+  const applyAllPermissions = (val) => {
+    setPermVisitsView(val);
+    setPermVisitsCreate(val);
+    setPermVisitsEdit(val);
+    setPermVisitsDelete(val);
+
+    setPermCustomersView(val);
+    setPermCustomersCreate(val);
+    setPermCustomersEdit(val);
+    setPermCustomersDelete(val);
+
+    setPermStaffView(val);
+    setPermStaffCreate(val);
+    setPermStaffEdit(val);
+    setPermStaffDelete(val);
+
+    setPermReportsView(val);
+    setPermReportsExport(val);
+    setPermMapView(val);
+  };
+
+  const applyDefaultPermissions = () => {
+    setPermVisitsView(true);
+    setPermVisitsCreate(true);
+    setPermVisitsEdit(true);
+    setPermVisitsDelete(false);
+
+    setPermCustomersView(true);
+    setPermCustomersCreate(true);
+    setPermCustomersEdit(true);
+    setPermCustomersDelete(false);
+
+    setPermStaffView(false);
+    setPermStaffCreate(false);
+    setPermStaffEdit(false);
+    setPermStaffDelete(false);
+
+    setPermReportsView(true);
+    setPermReportsExport(true);
+    setPermMapView(true);
+  };
 
   // Show/Hide passwords in table
   const [revealedPasswords, setRevealedPasswords] = useState({});
@@ -77,6 +127,10 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
 
   // Live calculated age from form DOB
   const liveAge = calculateAge(dob);
+
+  const canCreateStaff = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_create_staff', false);
+  const canEditStaff = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_edit_staff', false);
+  const canDeleteStaff = currentUser?.role === 'Admin' || hasPermission(currentUser, 'can_delete_staff', false);
 
   useEffect(() => {
     fetchStaff();
@@ -141,11 +195,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     setUsername('');
     setPassword('');
     setStatus('សកម្ម');
-    setPermManageStaff(false);
-    setPermEditCustomer(true);
-    setPermDeleteCustomer(false);
-    setPermDeleteVisit(false);
-    setPermExportReports(true);
+    applyDefaultPermissions();
     setIsModalOpen(true);
   };
 
@@ -163,11 +213,31 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     setStatus(s.status || 'សកម្ម');
 
     const perms = s.permissions || {};
-    setPermManageStaff(Boolean(perms.can_manage_staff || s.role === 'Admin'));
-    setPermEditCustomer(perms.can_edit_customer !== false);
-    setPermDeleteCustomer(Boolean(perms.can_delete_customer || s.role === 'Admin'));
-    setPermDeleteVisit(Boolean(perms.can_delete_visit || s.role === 'Admin'));
-    setPermExportReports(perms.can_export_reports !== false);
+    const isAdminRole = s.role === 'Admin';
+
+    // Visits
+    setPermVisitsView(isAdminRole ? true : (perms.can_view_visits !== false));
+    setPermVisitsCreate(isAdminRole ? true : (perms.can_create_visit !== false));
+    setPermVisitsEdit(isAdminRole ? true : (perms.can_edit_visit !== false));
+    setPermVisitsDelete(isAdminRole ? true : Boolean(perms.can_delete_visit));
+
+    // Customers
+    setPermCustomersView(isAdminRole ? true : (perms.can_view_customers !== false));
+    setPermCustomersCreate(isAdminRole ? true : (perms.can_create_customer !== false));
+    setPermCustomersEdit(isAdminRole ? true : (perms.can_edit_customer !== false));
+    setPermCustomersDelete(isAdminRole ? true : Boolean(perms.can_delete_customer));
+
+    // Staff
+    const hasLegacyManageStaff = Boolean(perms.can_manage_staff);
+    setPermStaffView(isAdminRole ? true : Boolean(perms.can_view_staff || hasLegacyManageStaff));
+    setPermStaffCreate(isAdminRole ? true : Boolean(perms.can_create_staff || hasLegacyManageStaff));
+    setPermStaffEdit(isAdminRole ? true : Boolean(perms.can_edit_staff || hasLegacyManageStaff));
+    setPermStaffDelete(isAdminRole ? true : Boolean(perms.can_delete_staff));
+
+    // Reports & Maps
+    setPermReportsView(isAdminRole ? true : (perms.can_view_reports !== false));
+    setPermReportsExport(isAdminRole ? true : (perms.can_export_reports !== false));
+    setPermMapView(isAdminRole ? true : (perms.can_view_map !== false));
 
     setIsModalOpen(true);
   };
@@ -179,12 +249,30 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     if (!password.trim()) return alert("សូមបញ្ចូល Password!");
 
     setIsSaving(true);
-    const permissionsObj = {
-      can_manage_staff: role === 'Admin' ? true : permManageStaff,
-      can_edit_customer: role === 'Admin' ? true : permEditCustomer,
-      can_delete_customer: role === 'Admin' ? true : permDeleteCustomer,
-      can_delete_visit: role === 'Admin' ? true : permDeleteVisit,
-      can_export_reports: role === 'Admin' ? true : permExportReports,
+    const permissionsObj = role === 'Admin' ? { ...ADMIN_FULL_PERMISSIONS } : {
+      // 1. បញ្ជីចុះចំការ
+      can_view_visits: permVisitsView,
+      can_create_visit: permVisitsCreate,
+      can_edit_visit: permVisitsEdit,
+      can_delete_visit: permVisitsDelete,
+
+      // 2. បញ្ជីអតិថិជន
+      can_view_customers: permCustomersView,
+      can_create_customer: permCustomersCreate,
+      can_edit_customer: permCustomersEdit,
+      can_delete_customer: permCustomersDelete,
+
+      // 3. បញ្ជីបុគ្គលិក
+      can_view_staff: permStaffView,
+      can_create_staff: permStaffCreate,
+      can_edit_staff: permStaffEdit,
+      can_delete_staff: permStaffDelete,
+      can_manage_staff: permStaffView || permStaffCreate || permStaffEdit, // for backward compatibility
+
+      // 4. របាយការណ៍ & ផែនទី
+      can_view_reports: permReportsView,
+      can_export_reports: permReportsExport,
+      can_view_map: permMapView,
     };
 
     const payload = {
@@ -549,13 +637,15 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
               សរុប៖ <span className="text-slate-900">{filteredStaff.length}</span>
             </span>
 
-            <button
-              onClick={handleOpenAdd}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
-            >
-              <UserPlus size={15} />
-              <span>បន្ថែមបុគ្គលិកថ្មី</span>
-            </button>
+            {canCreateStaff && (
+              <button
+                onClick={handleOpenAdd}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
+              >
+                <UserPlus size={15} />
+                <span>បន្ថែមបុគ្គលិកថ្មី</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -680,29 +770,46 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                       </td>
 
                       {/* Permissions Summary */}
-                      <td className="py-2.5 px-3 max-w-[160px]">
+                      <td className="py-2.5 px-3 min-w-[210px]">
                         {staffMember.role === 'Admin' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                             <ShieldCheck size={11} /> ពេញលេញ (Full Admin)
                           </span>
                         ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {staffMember.permissions?.can_manage_staff && (
-                              <span className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 font-medium">គ្រប់គ្រងបុគ្គលិក</span>
-                            )}
-                            {staffMember.permissions?.can_edit_customer && (
-                              <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-medium">កែអតិថិជន</span>
-                            )}
-                            {staffMember.permissions?.can_delete_customer && (
-                              <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-200 font-medium">លុបអតិថិជន</span>
-                            )}
-                            {staffMember.permissions?.can_delete_visit && (
-                              <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-200 font-medium">លុបកំណត់ត្រា</span>
-                            )}
-                            {!staffMember.permissions?.can_manage_staff && 
-                             !staffMember.permissions?.can_delete_customer && 
-                             !staffMember.permissions?.can_delete_visit && (
-                              <span className="text-[10px] text-slate-400">សិទ្ធិស្តង់ដារ</span>
+                          <div className="space-y-1 text-[10px]">
+                            {/* Visits permissions */}
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-slate-600 w-12 shrink-0">ចុះចំការ:</span>
+                              <div className="flex gap-0.5">
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_view_visits !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}>មើល</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_create_visit !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}>ថែម</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_edit_visit !== false ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-400 line-through'}`}>កែ</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_delete_visit) ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-400 line-through'}`}>លុប</span>
+                              </div>
+                            </div>
+
+                            {/* Customers permissions */}
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-slate-600 w-12 shrink-0">អតិថិជន:</span>
+                              <div className="flex gap-0.5">
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_view_customers !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}>មើល</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_create_customer !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400 line-through'}`}>ថែម</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${staffMember.permissions?.can_edit_customer !== false ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-400 line-through'}`}>កែ</span>
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_delete_customer) ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-400 line-through'}`}>លុប</span>
+                              </div>
+                            </div>
+
+                            {/* Staff permissions if allowed */}
+                            {(staffMember.permissions?.can_view_staff || staffMember.permissions?.can_manage_staff) && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-bold text-slate-600 w-12 shrink-0">បុគ្គលិក:</span>
+                                <div className="flex gap-0.5">
+                                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_view_staff || staffMember.permissions?.can_manage_staff) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-400 line-through'}`}>មើល</span>
+                                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_create_staff || staffMember.permissions?.can_manage_staff) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-400 line-through'}`}>ថែម</span>
+                                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_edit_staff || staffMember.permissions?.can_manage_staff) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-400 line-through'}`}>កែ</span>
+                                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${Boolean(staffMember.permissions?.can_delete_staff) ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-400 line-through'}`}>លុប</span>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}
@@ -737,24 +844,28 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                       {/* Actions */}
                       <td className="py-2.5 px-3.5 text-center whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50/80 transition-colors shadow-xs">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(staffMember)}
-                            title="កែប្រែ"
-                            className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
-                          >
-                            <Edit size={13} />
-                          </button>
+                          {canEditStaff && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(staffMember)}
+                              title="កែប្រែ"
+                              className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer"
+                            >
+                              <Edit size={13} />
+                            </button>
+                          )}
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStaff(staffMember)}
-                            title="លុប"
-                            disabled={isCurrentAdmin}
-                            className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 disabled:opacity-30 disabled:pointer-events-none"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {canDeleteStaff && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStaff(staffMember)}
+                              title="លុប"
+                              disabled={isCurrentAdmin}
+                              className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -940,67 +1051,149 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                   </select>
                 </div>
 
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                  <span className="font-bold text-slate-700 block text-[11px] uppercase">
-                    សិទ្ធិប្រើប្រាស់ក្នុងប្រព័ន្ធ (Permissions)
-                  </span>
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-slate-800 block text-xs">
+                        កំណត់សិទ្ធិប្រើប្រាស់តាមបញ្ជីនីមួយៗ (Permissions Matrix)
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        កំណត់សិទ្ធិ មើល, បន្ថែម, កែប្រែ, លុប សម្រាប់ User នេះ
+                      </span>
+                    </div>
+
+                    {role !== 'Admin' && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => applyAllPermissions(true)}
+                          className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          ជ្រើសទាំងអស់
+                        </button>
+                        <button
+                          type="button"
+                          onClick={applyDefaultPermissions}
+                          className="text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          លំនាំដើម
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyAllPermissions(false)}
+                          className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          ដកទាំងអស់
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {role === 'Admin' ? (
-                    <div className="text-[11px] text-blue-700 font-bold bg-blue-50 p-2 rounded-lg border border-blue-200 flex items-center gap-1.5">
-                      <ShieldCheck size={14} />
-                      <span>តួនាទី Admin មានសិទ្ធិគ្រប់គ្រងពេញលេញទាំងអស់ដោយស្វ័យប្រវត្តិ។</span>
+                    <div className="text-xs text-blue-800 font-bold bg-blue-50 p-2.5 rounded-xl border border-blue-200 flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                      <span>តួនាទី Admin មានសិទ្ធិពេញលេញលើបញ្ជី និងមុខងារទាំងអស់ដោយស្វ័យប្រវត្តិ (Full Access)។</span>
                     </div>
                   ) : (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={permManageStaff} 
-                          onChange={e => setPermManageStaff(e.target.checked)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500" 
-                        />
-                        <span className="text-slate-700">អនុញ្ញាតឱ្យមើល និងគ្រប់គ្រងបញ្ជីបុគ្គលិក (Staff Management)</span>
-                      </label>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                            <th className="py-2 px-3">ឈ្មោះបញ្ជី / មុខងារ</th>
+                            <th className="py-2 px-2 text-center w-14">មើល</th>
+                            <th className="py-2 px-2 text-center w-14">បន្ថែម</th>
+                            <th className="py-2 px-2 text-center w-14">កែប្រែ</th>
+                            <th className="py-2 px-2 text-center w-14">លុប</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {/* Row 1: Visits */}
+                          <tr className="hover:bg-slate-50/70">
+                            <td className="py-2 px-3 font-bold text-slate-800">
+                              <span className="block">១. បញ្ជីចុះចំការ</span>
+                              <span className="text-[10px] text-slate-400 font-normal">Field Visits Tracker</span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permVisitsView} onChange={e => setPermVisitsView(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permVisitsCreate} onChange={e => setPermVisitsCreate(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permVisitsEdit} onChange={e => setPermVisitsEdit(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permVisitsDelete} onChange={e => setPermVisitsDelete(e.target.checked)} className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer" />
+                            </td>
+                          </tr>
 
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={permEditCustomer} 
-                          onChange={e => setPermEditCustomer(e.target.checked)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500" 
-                        />
-                        <span className="text-slate-700">អនុញ្ញាតឱ្យបន្ថែម និងកែប្រែទិន្នន័យអតិថិជន</span>
-                      </label>
+                          {/* Row 2: Customers */}
+                          <tr className="hover:bg-slate-50/70">
+                            <td className="py-2 px-3 font-bold text-slate-800">
+                              <span className="block">២. បញ្ជីអតិថិជន</span>
+                              <span className="text-[10px] text-slate-400 font-normal">Customers & Farmers</span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permCustomersView} onChange={e => setPermCustomersView(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permCustomersCreate} onChange={e => setPermCustomersCreate(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permCustomersEdit} onChange={e => setPermCustomersEdit(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permCustomersDelete} onChange={e => setPermCustomersDelete(e.target.checked)} className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer" />
+                            </td>
+                          </tr>
 
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={permDeleteCustomer} 
-                          onChange={e => setPermDeleteCustomer(e.target.checked)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500" 
-                        />
-                        <span className="text-slate-700">អនុញ្ញាតឱ្យលុបទិន្នន័យអតិថិជន</span>
-                      </label>
+                          {/* Row 3: Staff */}
+                          <tr className="hover:bg-slate-50/70">
+                            <td className="py-2 px-3 font-bold text-slate-800">
+                              <span className="block">៣. បញ្ជីបុគ្គលិក</span>
+                              <span className="text-[10px] text-slate-400 font-normal">Staff & System Accounts</span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permStaffView} onChange={e => setPermStaffView(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permStaffCreate} onChange={e => setPermStaffCreate(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permStaffEdit} onChange={e => setPermStaffEdit(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input type="checkbox" checked={permStaffDelete} onChange={e => setPermStaffDelete(e.target.checked)} className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer" />
+                            </td>
+                          </tr>
 
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={permDeleteVisit} 
-                          onChange={e => setPermDeleteVisit(e.target.checked)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500" 
-                        />
-                        <span className="text-slate-700">អនុញ្ញាតឱ្យលុបកំណត់ត្រាចុះចំការ</span>
-                      </label>
-
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={permExportReports} 
-                          onChange={e => setPermExportReports(e.target.checked)}
-                          className="rounded text-emerald-600 focus:ring-emerald-500" 
-                        />
-                        <span className="text-slate-700">អនុញ្ញាតឱ្យទាញយករបាយការណ៍សង្ខេប</span>
-                      </label>
+                          {/* Row 4: Reports & Maps */}
+                          <tr className="hover:bg-slate-50/70">
+                            <td className="py-2 px-3 font-bold text-slate-800">
+                              <span className="block">៤. របាយការណ៍ & ផែនទី</span>
+                              <span className="text-[10px] text-slate-400 font-normal">Analytics, Export & Map</span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <label className="inline-flex flex-col items-center gap-0.5 cursor-pointer">
+                                <input type="checkbox" checked={permReportsView} onChange={e => setPermReportsView(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                                <span className="text-[9px] text-slate-400">របាយការណ៍</span>
+                              </label>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <label className="inline-flex flex-col items-center gap-0.5 cursor-pointer">
+                                <input type="checkbox" checked={permReportsExport} onChange={e => setPermReportsExport(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                                <span className="text-[9px] text-slate-400">ទាញយក</span>
+                              </label>
+                            </td>
+                            <td className="py-2 px-2 text-center" colSpan={2}>
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input type="checkbox" checked={permMapView} onChange={e => setPermMapView(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                                <span className="text-[10px] text-slate-700 font-bold">មើលផែនទី (Map)</span>
+                              </label>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

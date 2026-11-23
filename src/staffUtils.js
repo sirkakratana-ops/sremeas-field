@@ -28,6 +28,72 @@ export function getStaffBranches(staffList = []) {
 
 export const BRANCH_SUGGESTIONS = [];
 
+export const DEFAULT_USER_PERMISSIONS = {
+  // 1. បញ្ជីចុះចំការ (Visits)
+  can_view_visits: true,
+  can_create_visit: true,
+  can_edit_visit: true,
+  can_delete_visit: false,
+
+  // 2. បញ្ជីអតិថិជន (Customers)
+  can_view_customers: true,
+  can_create_customer: true,
+  can_edit_customer: true,
+  can_delete_customer: false,
+
+  // 3. បញ្ជីបុគ្គលិក (Staff)
+  can_view_staff: false,
+  can_create_staff: false,
+  can_edit_staff: false,
+  can_delete_staff: false,
+  can_manage_staff: false,
+
+  // 4. របាយការណ៍ & ផែនទី (Reports & Maps)
+  can_view_reports: true,
+  can_export_reports: true,
+  can_view_map: true,
+};
+
+export const ADMIN_FULL_PERMISSIONS = {
+  can_view_visits: true,
+  can_create_visit: true,
+  can_edit_visit: true,
+  can_delete_visit: true,
+
+  can_view_customers: true,
+  can_create_customer: true,
+  can_edit_customer: true,
+  can_delete_customer: true,
+
+  can_view_staff: true,
+  can_create_staff: true,
+  can_edit_staff: true,
+  can_delete_staff: true,
+  can_manage_staff: true,
+
+  can_view_reports: true,
+  can_export_reports: true,
+  can_view_map: true,
+};
+
+/**
+ * Check whether a user has a specific permission
+ */
+export function hasPermission(user, permKey, defaultVal = true) {
+  if (!user) return false;
+  if (user.role === 'Admin') return true;
+  if (!user.permissions) return defaultVal;
+
+  if (permKey === 'can_view_staff' || permKey === 'can_create_staff' || permKey === 'can_edit_staff') {
+    if (user.permissions.can_manage_staff) return true;
+  }
+  if (permKey === 'can_manage_staff') {
+    if (user.permissions.can_view_staff || user.permissions.can_create_staff || user.permissions.can_edit_staff) return true;
+  }
+
+  return user.permissions[permKey] !== undefined ? Boolean(user.permissions[permKey]) : defaultVal;
+}
+
 export const SQL_SCHEMA_SCRIPT = `-- ==========================================================
 -- 1. បន្ថែមជួរឈរ (Columns) ក្នុងតារាង customers
 -- ==========================================================
