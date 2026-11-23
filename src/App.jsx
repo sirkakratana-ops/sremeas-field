@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User } from 'lucide-react';
+import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User, BarChart3 } from 'lucide-react';
 
 import VisitList from './components/VisitList';
 import MapView from './components/MapView';
@@ -9,6 +9,7 @@ import AdminDashboard from './components/AdminDashboard';
 import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
+import ReportsView from './components/ReportsView';
 import { getStaffList } from './staffUtils';
 import { deleteVisitPhotosFromStorage, cleanupExpiredVisitPhotos } from './imageUtils';
 
@@ -22,7 +23,7 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'map' | 'customers' | 'admin'
+  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'reports' | 'map' | 'customers' | 'admin'
   const [visits, setVisits] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -284,6 +285,16 @@ export default function App() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('reports')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'reports' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 size={14} className={activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500'} />
+            <span>របាយការណ៍ & ក្រាហ្វិក</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('map')}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'map' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
@@ -337,6 +348,16 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'reports' && (
+              <ReportsView 
+                visits={visits}
+                customers={customers}
+                staffList={staffList}
+                currentUser={currentUser}
+                onSelectVisit={(v) => setSelectedVisitDetail(v)}
+              />
+            )}
+
             {activeTab === 'map' && (
               <MapView 
                 visits={visits} 
@@ -382,6 +403,16 @@ export default function App() {
         >
           <ClipboardList size={18} />
           <span>កំណត់ត្រា</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('reports')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+            activeTab === 'reports' ? 'text-emerald-700' : 'text-slate-400'
+          }`}
+        >
+          <BarChart3 size={18} />
+          <span>របាយការណ៍</span>
         </button>
 
         <button 
