@@ -70,23 +70,57 @@ export default function App() {
   };
 
   const fetchVisits = async () => {
-    const { data, error } = await supabase
-      .from('field_visits')
-      .select('*, customers(*)')
-      .order('visit_date', { ascending: false });
+    try {
+      let allVisits = [];
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('field_visits')
+          .select('*, customers(*)')
+          .order('visit_date', { ascending: false })
+          .range(from, from + step - 1);
 
-    if (error) console.error("Error fetching visits:", error);
-    if (data) setVisits(data);
+        if (error) {
+          console.error("Error fetching visits:", error);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        allVisits = allVisits.concat(data);
+        if (data.length < step) break;
+        from += step;
+      }
+      setVisits(allVisits);
+    } catch (err) {
+      console.error("Exception fetching visits:", err);
+    }
   };
 
   const fetchCustomers = async () => {
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .order('name', { ascending: true });
+    try {
+      let allCust = [];
+      let from = 0;
+      const step = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('name', { ascending: true })
+          .range(from, from + step - 1);
 
-    if (error) console.error("Error fetching customers:", error);
-    if (data) setCustomers(data);
+        if (error) {
+          console.error("Error fetching customers:", error);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        allCust = allCust.concat(data);
+        if (data.length < step) break;
+        from += step;
+      }
+      setCustomers(allCust);
+    } catch (err) {
+      console.error("Exception fetching customers:", err);
+    }
   };
 
   const handleLoginSuccess = (user) => {

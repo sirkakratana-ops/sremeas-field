@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
@@ -14,6 +14,8 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
   const [filterStatus, setFilterStatus] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
   const [sharingVisit, setSharingVisit] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   const canDeleteVisit = currentUser?.role === 'Admin' || Boolean(currentUser?.permissions?.can_delete_visit);
 
@@ -50,6 +52,17 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
 
     return matchSearch && matchCrop && matchStatus;
   });
+
+  // Reset page to 1 on filter/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCrop, filterStatus]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginatedVisits = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   return (
     <div className="space-y-4">
@@ -152,7 +165,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map(visit => {
+                {paginatedVisits.map(visit => {
                   const hasPhotos = visit.photos && visit.photos.length > 0;
                   const isProblem = visit.crop_status === 'មានបញ្ហា/ជំងឺ';
                   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
@@ -371,7 +384,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
 
         /* ======================== CARDS VIEW (ទម្រង់កាត) ======================== */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map(visit => {
+          {paginatedVisits.map(visit => {
             const hasPhotos = visit.photos && visit.photos.length > 0;
             const primaryPhoto = hasPhotos ? visit.photos[0] : null;
             const cardCrops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
@@ -555,6 +568,52 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filtered.length > pageSize && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs text-xs">
+          <div className="text-slate-500 font-medium">
+            បង្ហាញទំព័រទី <span className="font-bold text-slate-800">{currentPage}</span> នៃ <span className="font-bold text-slate-800">{totalPages}</span> (បង្ហាញ {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filtered.length)} នៃសរុប {filtered.length} កំណត់ត្រា)
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ដំបូង
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ថយក្រោយ
+            </button>
+            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 font-bold rounded-lg border border-emerald-200">
+              {currentPage} / {totalPages}
+            </div>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              បន្ទាប់
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ចុងក្រោយ
+            </button>
+          </div>
         </div>
       )}
 

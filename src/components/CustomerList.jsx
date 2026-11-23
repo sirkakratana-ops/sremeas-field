@@ -40,6 +40,8 @@ export default function CustomerList({
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
   
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -157,6 +159,17 @@ export default function CustomerList({
 
     return matchSearch && matchType && matchGender && matchCrop && matchBranch;
   });
+
+  // Reset to page 1 on filter/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType, filterGender, filterCrop, filterBranch]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginatedCustomers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const handleOpenAdd = () => {
     setEditingCustomer(null);
@@ -511,7 +524,7 @@ export default function CustomerList({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map(cust => {
+                {paginatedCustomers.map(cust => {
                   const hasGPS = cust.latitude && cust.longitude;
                   const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
                   const crops = parseCrops(cust.crops, cust.primary_crop);
@@ -697,7 +710,7 @@ export default function CustomerList({
 
         /* ======================== CARDS VIEW (ទម្រង់កាត) ======================== */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map(cust => {
+          {paginatedCustomers.map(cust => {
             const hasGPS = cust.latitude && cust.longitude;
             const fullAddress = [cust.village, cust.commune, cust.district, cust.province].filter(Boolean).join(', ');
             const crops = parseCrops(cust.crops, cust.primary_crop);
@@ -843,6 +856,52 @@ export default function CustomerList({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filtered.length > pageSize && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs text-xs">
+          <div className="text-slate-500 font-medium">
+            បង្ហាញទំព័រទី <span className="font-bold text-slate-800">{currentPage}</span> នៃ <span className="font-bold text-slate-800">{totalPages}</span> (បង្ហាញ {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filtered.length)} នៃសរុប {filtered.length} នាក់)
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ដំបូង
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ថយក្រោយ
+            </button>
+            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 font-bold rounded-lg border border-emerald-200">
+              {currentPage} / {totalPages}
+            </div>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              បន្ទាប់
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ចុងក្រោយ
+            </button>
+          </div>
         </div>
       )}
 
@@ -1214,6 +1273,52 @@ export default function CustomerList({
 
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filtered.length > pageSize && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs text-xs">
+          <div className="text-slate-500 font-medium">
+            បង្ហាញទំព័រទី <span className="font-bold text-slate-800">{currentPage}</span> នៃ <span className="font-bold text-slate-800">{totalPages}</span> (បង្ហាញ {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filtered.length)} នៃសរុប {filtered.length} នាក់)
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ដំបូង
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ថយក្រោយ
+            </button>
+            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 font-bold rounded-lg border border-emerald-200">
+              {currentPage} / {totalPages}
+            </div>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              បន្ទាប់
+            </button>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent font-medium"
+            >
+              ចុងក្រោយ
+            </button>
           </div>
         </div>
       )}
