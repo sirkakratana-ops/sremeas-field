@@ -680,7 +680,7 @@ export default function NewVisitModal({
                 {duplicateFrom ? 'ចម្លងកំណត់ត្រាចុះចំការ (Duplicate)' : (visitToEdit ? 'កែប្រែកំណត់ត្រាចុះចំការ' : 'កត់ត្រាការចុះចំការថ្មី')}
               </h3>
               <p className="text-xs sm:text-[10px] text-white/80 font-medium">
-                {duplicateFrom ? 'ស្រែមាន - ចម្លងព័ត៌មានពីកំណត់ត្រាចាស់ដើម្បីកត់ត្រាថ្មី' : 'ស្រែមាន - ប្រព័ន្ធតាមដានការងារចុះចំការ'}
+                {duplicateFrom ? 'ស្រែមាស - ចម្លងព័ត៌មានពីកំណត់ត្រាចាស់ដើម្បីកត់ត្រាថ្មី' : 'ស្រែមាស - ប្រព័ន្ធតាមដានការងារចុះចំការ'}
               </p>
             </div>
           </div>

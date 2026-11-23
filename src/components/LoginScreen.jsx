@@ -117,7 +117,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md mb-3">
             <Sprout size={32} />
           </div>
-          <h2 className="text-xl font-black text-slate-900 leading-tight">ស្រែមាន - ចុះចំការ</h2>
+          <h2 className="text-xl font-black text-slate-900 leading-tight">ស្រែមាស - ចុះចំការ</h2>
           <p className="text-xs text-slate-500 font-bold mt-1">Field Marketing & Visit Tracker</p>
         </div>
 

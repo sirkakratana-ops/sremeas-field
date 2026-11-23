@@ -280,7 +280,7 @@ export default function App() {
               <Sprout size={20} />
             </div>
             <div>
-              <h1 className="font-black text-sm md:text-base text-slate-900 leading-tight">ស្រែមាន - ចុះចំការ</h1>
+              <h1 className="font-black text-sm md:text-base text-slate-900 leading-tight">ស្រែមាស - ចុះចំការ</h1>
               <p className="text-[10px] text-slate-500 font-bold">Field Marketing & Visit Tracker</p>
             </div>
           </div>
