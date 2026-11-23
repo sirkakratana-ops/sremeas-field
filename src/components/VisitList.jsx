@@ -3,7 +3,7 @@ import {
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
   LayoutGrid, Phone, Package, ExternalLink, Building, Users,
-  Send, UserCheck, X, Check, Filter, RotateCcw, Plus
+  Send, UserCheck, X, Check, Filter, RotateCcw, Plus, Copy
 } from 'lucide-react';
 import { parseCrops } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
@@ -32,7 +32,7 @@ function getVisitDateKey(visitDateVal) {
   return '';
 }
 
-export default function VisitList({ visits, onSelectVisit, onEditVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
+export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplicateVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -563,6 +563,18 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                             <Edit size={13} />
                           </button>
 
+                          {/* Duplicate */}
+                          {onDuplicateVisit && (
+                            <button 
+                              type="button" 
+                              onClick={() => onDuplicateVisit(visit)} 
+                              title="ចម្លងកំណត់ត្រានេះ (Duplicate)"
+                              className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          )}
+
                           {/* Delete */}
                           {canDeleteVisit && (
                             <button 
@@ -758,6 +770,16 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDelete
                     >
                       <Edit size={13} />
                     </button>
+                    {onDuplicateVisit && (
+                      <button 
+                        type="button" 
+                        onClick={() => onDuplicateVisit(visit)} 
+                        title="ចម្លងកំណត់ត្រានេះ (Duplicate)"
+                        className="p-1.5 text-emerald-600 hover:text-emerald-800 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                      >
+                        <Copy size={13} />
+                      </button>
+                    )}
                     {canDeleteVisit && (
                       <button 
                         type="button" 

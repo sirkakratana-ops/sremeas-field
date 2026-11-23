@@ -4,12 +4,22 @@ import {
   MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, 
   User, Users, Save, Navigation, Sprout, Activity, 
   AlertCircle, Package, Calendar, FileText, Edit, ExternalLink,
-  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock, Link, ChevronDown
+  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock, Link, ChevronDown, Copy
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
 import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl } from '../staffUtils';
 import { compressMultipleImages, formatFileSize } from '../imageUtils';
+
+function getLocalDateString(d = new Date()) {
+  if (!d || isNaN(new Date(d).getTime())) d = new Date();
+  const dateObj = new Date(d);
+  const pad = n => String(n).padStart(2, '0');
+  const year = dateObj.getFullYear();
+  const month = pad(dateObj.getMonth() + 1);
+  const day = pad(dateObj.getDate());
+  return `${year}-${month}-${day}`;
+}
 
 export default function NewVisitModal({ 
   isOpen, 
@@ -18,11 +28,13 @@ export default function NewVisitModal({
   customers, 
   onCustomerCreated, 
   visitToEdit, 
+  duplicateFrom,
   currentUser,
   staffList: propStaffList = []
 }) {
   const [staffName, setStaffName] = useState(() => currentUser?.name || localStorage.getItem('sremeas_staff_name') || '');
   const [branch, setBranch] = useState(() => currentUser?.branch || 'ការិយាល័យកណ្តាល');
+  const [visitDate, setVisitDate] = useState(() => getLocalDateString(new Date()));
   const [teamMembers, setTeamMembers] = useState([]);
   const [customMemberInput, setCustomMemberInput] = useState('');
   const [staffMembers, setStaffMembers] = useState(propStaffList);
@@ -118,11 +130,60 @@ export default function NewVisitModal({
     }
   }, [propStaffList, isOpen]);
 
-  // Initialize form when opened or when visitToEdit changes
+  // Initialize form when opened or when visitToEdit / duplicateFrom changes
   useEffect(() => {
     if (!isOpen) return;
 
-    if (visitToEdit) {
+    if (duplicateFrom) {
+      setStaffName(currentUser?.name || duplicateFrom.staff_name || '');
+      setBranch(duplicateFrom.branch || currentUser?.branch || 'ការិយាល័យកណ្តាល');
+
+      let initialTeam = [];
+      if (Array.isArray(duplicateFrom.team_members)) {
+        initialTeam = duplicateFrom.team_members;
+      } else if (typeof duplicateFrom.team_members === 'string') {
+        try {
+          const parsed = JSON.parse(duplicateFrom.team_members);
+          if (Array.isArray(parsed)) initialTeam = parsed;
+          else initialTeam = duplicateFrom.team_members.split(',').map(s => s.trim()).filter(Boolean);
+        } catch {
+          initialTeam = duplicateFrom.team_members.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      setTeamMembers(initialTeam);
+
+      setSelectedCustomerId(duplicateFrom.customer_id || '');
+      setLatitude(duplicateFrom.latitude || null);
+      setLongitude(duplicateFrom.longitude || null);
+      setLocationAddress(duplicateFrom.location_address || '');
+      setVisitCrops(parseCrops(duplicateFrom.crops, duplicateFrom.crop_type, duplicateFrom.farm_size_ha));
+      setCropStatus(duplicateFrom.crop_status || '');
+      setIssuesIdentified(duplicateFrom.issues_identified || '');
+      setProductsRecommended(duplicateFrom.products_recommended || '');
+
+      let rawNotes = duplicateFrom.notes || '';
+      let extractedHistory = duplicateFrom.farmer_history || '';
+      if (rawNotes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+        const m = rawNotes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
+        if (!extractedHistory && m) extractedHistory = m[1].trim();
+        rawNotes = rawNotes.replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n]*\n?/gi, '').trim();
+      }
+      setFarmerHistory(extractedHistory || '');
+      setNotes(rawNotes);
+      setVisitDate(getLocalDateString(new Date()));
+      setExistingPhotos([]);
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
+      setPhotoMeta([]);
+      setMapLinkInput('');
+      setMapLinkStatus(null);
+      setIsCompressing(false);
+      setShowAddCustomer(false);
+      setNewCustPhone('');
+      setNewCustPhoneDuplicate(null);
+      setIsCheckingNewCustPhone(false);
+      setPulledNotice('បានចម្លងព័ត៌មានពីកំណត់ត្រាចុះចំការចាស់រួចរាល់។ សូមពិនិត្យកាលបរិច្ឆេទ និងព័ត៌មានផ្សេងៗមុនរក្សាទុក។');
+    } else if (visitToEdit) {
       setStaffName(visitToEdit.staff_name || '');
       setBranch(visitToEdit.branch || currentUser?.branch || 'ការិយាល័យកណ្តាល');
       
@@ -160,11 +221,14 @@ export default function NewVisitModal({
       }
       setFarmerHistory(extractedHistory || '');
       setNotes(rawNotes);
+      setVisitDate(visitToEdit.visit_date ? getLocalDateString(visitToEdit.visit_date) : getLocalDateString(new Date()));
       setExistingPhotos(visitToEdit.photos || []);
       setPhotoFiles([]);
       setPhotoPreviews([]);
+      setPhotoMeta([]);
       setMapLinkInput('');
       setMapLinkStatus(null);
+      setIsCompressing(false);
       setShowAddCustomer(false);
       setNewCustPhone('');
       setNewCustPhoneDuplicate(null);
@@ -187,6 +251,7 @@ export default function NewVisitModal({
       setProductsRecommended('');
       setFarmerHistory('');
       setNotes('');
+      setVisitDate(getLocalDateString(new Date()));
       setExistingPhotos([]);
       setPhotoFiles([]);
       setPhotoPreviews([]);
@@ -204,7 +269,7 @@ export default function NewVisitModal({
       ]);
       handleGetGPS();
     }
-  }, [isOpen, visitToEdit, currentUser]);
+  }, [isOpen, visitToEdit, duplicateFrom, currentUser]);
 
   // Pull Farm Location and Crops directly from Customer Record
   const pullDataFromCustomer = (cust) => {
@@ -507,7 +572,21 @@ export default function NewVisitModal({
       const totalHa = visitCrops.reduce((sum, c) => sum + (parseFloat(c.farm_size_ha) || 0), 0) || null;
 
       // 2. Full Visit Payload
+      let finalVisitDate;
+      if (visitDate) {
+        if (visitToEdit && visitDate === getLocalDateString(visitToEdit.visit_date)) {
+          finalVisitDate = visitToEdit.visit_date;
+        } else {
+          const d = new Date();
+          const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+          finalVisitDate = new Date(`${visitDate}T${timeStr}`).toISOString();
+        }
+      } else {
+        finalVisitDate = new Date().toISOString();
+      }
+
       const payload = {
+        visit_date: finalVisitDate,
         staff_name: staffName.trim(),
         branch: branch.trim() || null,
         team_members: teamMembers,
@@ -536,7 +615,10 @@ export default function NewVisitModal({
         customers: customerObj || null
       };
 
-      alert(visitToEdit ? "បានកែប្រែកំណត់ត្រាជោគជ័យ!" : "កត់ត្រាការចុះចំការបានជោគជ័យ!");
+      const successMsg = duplicateFrom 
+        ? "បានកត់ត្រាការចុះចំការថ្មី (ចម្លង) ជោគជ័យ!" 
+        : (visitToEdit ? "បានកែប្រែកំណត់ត្រាជោគជ័យ!" : "កត់ត្រាការចុះចំការបានជោគជ័យ!");
+      alert(successMsg);
       onVisitCreated(savedData);
       onClose();
     } catch (err) {
@@ -581,19 +663,29 @@ export default function NewVisitModal({
       <div className="relative w-full max-w-xl max-w-[calc(100vw-16px)] sm:max-w-xl my-2 sm:my-8 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         
         {/* Header */}
-        <div className={`flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 text-white ${visitToEdit ? 'bg-slate-900' : 'bg-emerald-600'}`}>
+        <div className={`flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 text-white ${
+          duplicateFrom ? 'bg-emerald-700' : (visitToEdit ? 'bg-slate-900' : 'bg-emerald-600')
+        }`}>
           <div className="flex items-center gap-2">
             <span className="p-2 sm:p-1.5 rounded-xl bg-white/10">
-              {visitToEdit ? <Edit size={20} className="sm:w-[18px] sm:h-[18px]" /> : <Sprout size={20} className="sm:w-[18px] sm:h-[18px]" />}
+              {duplicateFrom ? (
+                <Copy size={20} className="sm:w-[18px] sm:h-[18px]" />
+              ) : visitToEdit ? (
+                <Edit size={20} className="sm:w-[18px] sm:h-[18px]" />
+              ) : (
+                <Sprout size={20} className="sm:w-[18px] sm:h-[18px]" />
+              )}
             </span>
             <div>
               <h3 className="font-bold text-base sm:text-base leading-tight">
-                {visitToEdit ? 'កែប្រែកំណត់ត្រាចុះចំការ' : 'កត់ត្រាការចុះចំការថ្មី'}
+                {duplicateFrom ? 'ចម្លងកំណត់ត្រាចុះចំការ (Duplicate)' : (visitToEdit ? 'កែប្រែកំណត់ត្រាចុះចំការ' : 'កត់ត្រាការចុះចំការថ្មី')}
               </h3>
-              <p className="text-xs sm:text-[10px] text-white/80 font-medium">ស្រែមាន - ប្រព័ន្ធតាមដានការងារចុះចំការ</p>
+              <p className="text-xs sm:text-[10px] text-white/80 font-medium">
+                {duplicateFrom ? 'ស្រែមាន - ចម្លងព័ត៌មានពីកំណត់ត្រាចាស់ដើម្បីកត់ត្រាថ្មី' : 'ស្រែមាន - ប្រព័ន្ធតាមដានការងារចុះចំការ'}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 sm:p-1 rounded-xl hover:bg-black/20 text-white/80 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-2 sm:p-1 rounded-xl hover:bg-black/20 text-white/80 hover:text-white transition-colors cursor-pointer">
             <X size={22} className="sm:w-5 sm:h-5" />
           </button>
         </div>
@@ -614,9 +706,9 @@ export default function NewVisitModal({
         {/* Form Body */}
         <div className="p-3.5 sm:p-5 max-h-[85vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden space-y-4 text-sm sm:text-xs">
 
-          {/* ===================== SECTION 1: STAFF & BRANCH ===================== */}
+          {/* ===================== SECTION 1: STAFF, BRANCH & VISIT DATE ===================== */}
           <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2.5 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-2.5 min-w-0">
               
               {/* Staff Name */}
               <div>
@@ -652,8 +744,8 @@ export default function NewVisitModal({
                     <span>សាខា *</span>
                   </span>
                   {defaultStaffBranch && (
-                    <span className="text-[11px] sm:text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium">
-                      សាខាដើម៖ {defaultStaffBranch}
+                    <span className="text-[11px] sm:text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium truncate max-w-[90px]">
+                      ដើម៖ {defaultStaffBranch}
                     </span>
                   )}
                 </label>
@@ -671,6 +763,21 @@ export default function NewVisitModal({
                   </select>
                   <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
+              </div>
+
+              {/* Visit Date */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                  <Calendar size={14} className="text-emerald-600" />
+                  <span>កាលបរិច្ឆេទចុះចំការ *</span>
+                </label>
+                <input 
+                  type="date" 
+                  required 
+                  value={visitDate} 
+                  onChange={e => setVisitDate(e.target.value)} 
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold min-h-[44px] sm:min-h-[38px] shadow-2xs cursor-pointer"
+                />
               </div>
 
             </div>
@@ -1311,8 +1418,10 @@ export default function NewVisitModal({
               type="button" 
               onClick={handleSubmitVisit} 
               disabled={isSubmitting}
-              className={`w-full text-white font-bold py-3.5 sm:py-3 rounded-2xl shadow-md transition-colors flex items-center justify-center gap-2 text-base sm:text-sm min-h-[50px] sm:min-h-[44px] disabled:opacity-50 ${
-                visitToEdit ? 'bg-slate-900 hover:bg-slate-800' : 'bg-emerald-600 hover:bg-emerald-700'
+              className={`w-full text-white font-bold py-3.5 sm:py-3 rounded-2xl shadow-md transition-colors flex items-center justify-center gap-2 text-base sm:text-sm min-h-[50px] sm:min-h-[44px] disabled:opacity-50 cursor-pointer ${
+                duplicateFrom 
+                  ? 'bg-emerald-600 hover:bg-emerald-700' 
+                  : (visitToEdit ? 'bg-slate-900 hover:bg-slate-800' : 'bg-emerald-600 hover:bg-emerald-700')
               }`}
             >
               {isSubmitting ? (
@@ -1322,8 +1431,12 @@ export default function NewVisitModal({
                 </>
               ) : (
                 <>
-                  <CheckCircle2 size={18} />
-                  <span>{visitToEdit ? 'រក្សាទុកការកែប្រែ' : 'រក្សាទុកកំណត់ត្រាចុះចំការ'}</span>
+                  {duplicateFrom ? <Copy size={18} /> : <CheckCircle2 size={18} />}
+                  <span>
+                    {duplicateFrom 
+                      ? 'រក្សាទុកកំណត់ត្រាថ្មី (ដែលបានចម្លង)' 
+                      : (visitToEdit ? 'រក្សាទុកការកែប្រែ' : 'រក្សាទុកកំណត់ត្រាចុះចំការ')}
+                  </span>
                 </>
               )}
             </button>

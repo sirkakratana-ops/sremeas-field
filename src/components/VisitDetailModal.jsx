@@ -9,7 +9,7 @@ import { copyVisitReportToClipboard } from '../telegramUtils';
 import { isVisitPhotoExpired } from '../imageUtils';
 import ShareVisitModal from './ShareVisitModal';
 
-export default function VisitDetailModal({ visit, onClose }) {
+export default function VisitDetailModal({ visit, onClose, onDuplicateVisit }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -288,11 +288,26 @@ export default function VisitDetailModal({ visit, onClose }) {
 
         {/* Modal Footer Actions */}
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onDuplicateVisit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onDuplicateVisit(visit);
+                  onClose();
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95 cursor-pointer"
+                title="ចម្លងកំណត់ត្រានេះដើម្បីកត់ត្រាការចុះចំការថ្មី (Duplicate)"
+              >
+                <Copy size={13} />
+                <span>ចម្លង (Duplicate)</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setShowShareModal(true)}
-              className="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95"
+              className="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95 cursor-pointer"
             >
               <Send size={13} />
               <span>ផ្ញើចូល Telegram Group</span>
@@ -305,7 +320,7 @@ export default function VisitDetailModal({ visit, onClose }) {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+              className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
               <span>{copied ? 'បានចម្លង!' : 'ចម្លងរបាយការណ៍'}</span>
@@ -315,7 +330,7 @@ export default function VisitDetailModal({ visit, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
           >
             បិទ
           </button>

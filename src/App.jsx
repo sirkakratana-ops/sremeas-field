@@ -32,6 +32,7 @@ export default function App() {
   // Modals
   const [isNewVisitOpen, setIsNewVisitOpen] = useState(false);
   const [visitToEdit, setVisitToEdit] = useState(null);
+  const [duplicateFrom, setDuplicateFrom] = useState(null);
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
 
   useEffect(() => {
@@ -138,11 +139,19 @@ export default function App() {
 
   const handleOpenNewVisit = () => {
     setVisitToEdit(null);
+    setDuplicateFrom(null);
     setIsNewVisitOpen(true);
   };
 
   const handleEditVisit = (visit) => {
+    setDuplicateFrom(null);
     setVisitToEdit(visit);
+    setIsNewVisitOpen(true);
+  };
+
+  const handleDuplicateVisit = (visit) => {
+    setVisitToEdit(null);
+    setDuplicateFrom(visit);
     setIsNewVisitOpen(true);
   };
 
@@ -175,6 +184,7 @@ export default function App() {
   const handleVisitCreatedOrUpdated = () => {
     fetchVisits();
     setVisitToEdit(null);
+    setDuplicateFrom(null);
   };
 
   const handleCustomerCreated = (newCust) => {
@@ -192,6 +202,7 @@ export default function App() {
 
   const handleSelectCustomerForVisit = (cust) => {
     setVisitToEdit(null);
+    setDuplicateFrom(null);
     setIsNewVisitOpen(true);
   };
 
@@ -342,6 +353,7 @@ export default function App() {
                 visits={visits} 
                 onSelectVisit={(v) => setSelectedVisitDetail(v)}
                 onEditVisit={handleEditVisit}
+                onDuplicateVisit={handleDuplicateVisit}
                 onDeleteVisit={handleDeleteVisit}
                 onOpenNewVisit={handleOpenNewVisit}
                 currentUser={currentUser}
@@ -462,9 +474,11 @@ export default function App() {
       <NewVisitModal 
         isOpen={isNewVisitOpen}
         visitToEdit={visitToEdit}
+        duplicateFrom={duplicateFrom}
         onClose={() => {
           setIsNewVisitOpen(false);
           setVisitToEdit(null);
+          setDuplicateFrom(null);
         }}
         onVisitCreated={handleVisitCreatedOrUpdated}
         customers={customers}
@@ -475,6 +489,7 @@ export default function App() {
 
       <VisitDetailModal 
         visit={selectedVisitDetail}
+        onDuplicateVisit={handleDuplicateVisit}
         onClose={() => setSelectedVisitDetail(null)}
       />
 
