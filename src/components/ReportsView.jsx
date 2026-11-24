@@ -1239,14 +1239,14 @@ ${topStaffSummary || '—'}
                         <div className="font-medium text-slate-800">{cropTitle}</div>
                         {totalHa > 0 && <div className="text-[10px] text-emerald-700 font-bold">{totalHa} ហិកតា</div>}
                       </td>
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          v.crop_status === 'ល្អ' ? 'bg-emerald-100 text-emerald-800' :
-                          v.crop_status === 'មធ្យម' ? 'bg-amber-100 text-amber-800' :
-                          'bg-rose-100 text-rose-800'
-                        }`}>
-                          {v.crop_status || 'ល្អ'}
-                        </span>
+                      <td className="py-2 px-3 min-w-[150px] max-w-[220px]">
+                        {v.crop_status ? (
+                          <div className="text-xs text-slate-700 line-clamp-2 leading-relaxed" title={v.crop_status}>
+                            {v.crop_status}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="py-2 px-3 max-w-[180px] truncate text-slate-600" title={v.issues_identified || 'គ្មាន'}>
                         {v.issues_identified || '—'}

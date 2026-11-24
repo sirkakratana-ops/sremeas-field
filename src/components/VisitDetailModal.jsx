@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   X, MapPin, Calendar, User, Sprout, AlertTriangle, 
   PackageCheck, FileText, Phone, ExternalLink, Image,
-  Building, Users, UserCheck, Send, Copy, Check, Clock
+  Building, Users, UserCheck, Send, Copy, Check, Clock,
+  Activity
 } from 'lucide-react';
 import { parseCrops, hasPermission } from '../staffUtils';
 import { copyVisitReportToClipboard } from '../telegramUtils';
@@ -138,18 +139,6 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
                 <Sprout size={14} className="text-emerald-600" />
                 <span>ព័ត៌មានដំណាំក្នុងចំការ ({crops.length} មុខ)</span>
               </span>
-
-              <div className="flex items-center gap-2">
-                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                  visit.crop_status === 'ល្អ' 
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                    : visit.crop_status === 'មធ្យម'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-rose-50 text-rose-700 border-rose-200'
-                }`}>
-                  ស្ថានភាព៖ {visit.crop_status || '—'}
-                </span>
-              </div>
             </div>
 
             {crops.length > 0 ? (
@@ -198,15 +187,23 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
             )}
           </div>
 
-          {/* Issues & Recommendations */}
-          {(visit.issues_identified || visit.products_recommended) && (
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          {/* Farm Condition, Issues & Recommendations */}
+          {(visit.crop_status || visit.issues_identified || visit.products_recommended) && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              {visit.crop_status && (
+                <div>
+                  <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
+                    <Activity size={12} className="text-emerald-600" /> ស្ថានភាពទូទៅនៃចម្ការ៖
+                  </span>
+                  <p className="text-slate-800 mt-0.5 pl-4 leading-relaxed">{visit.crop_status}</p>
+                </div>
+              )}
               {visit.issues_identified && (
                 <div>
                   <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
                     <AlertTriangle size={12} className="text-amber-500" /> បញ្ហាប្រឈម៖
                   </span>
-                  <p className="text-slate-800 mt-0.5 pl-4">{visit.issues_identified}</p>
+                  <p className="text-slate-800 mt-0.5 pl-4 leading-relaxed">{visit.issues_identified}</p>
                 </div>
               )}
               {visit.products_recommended && (
@@ -214,7 +211,7 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
                   <span className="text-slate-500 font-bold flex items-center gap-1 text-[11px]">
                     <PackageCheck size={12} className="text-emerald-600" /> ដំណោះស្រាយ / ផលិតផលណែនាំ៖
                   </span>
-                  <p className="text-slate-800 mt-0.5 pl-4">{visit.products_recommended}</p>
+                  <p className="text-slate-800 mt-0.5 pl-4 leading-relaxed">{visit.products_recommended}</p>
                 </div>
               )}
             </div>

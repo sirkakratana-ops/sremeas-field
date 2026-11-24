@@ -3,7 +3,8 @@ import {
   Search, MapPin, Calendar, User, Sprout, Image, 
   AlertTriangle, Eye, Edit, Trash2, Table as TableIcon, 
   LayoutGrid, Phone, Package, ExternalLink, Building, Users,
-  Send, UserCheck, X, Check, Filter, RotateCcw, Plus, Copy
+  Send, UserCheck, X, Check, Filter, RotateCcw, Plus, Copy,
+  Activity
 } from 'lucide-react';
 import { parseCrops, hasPermission } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
@@ -98,7 +99,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
       cropsMatchSearch;
 
     const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop) || v.crop_type === filterCrop;
-    const matchStatus = filterStatus === 'All' || v.crop_status === filterStatus;
+    const matchStatus = filterStatus === 'All' || (v.crop_status && (v.crop_status === filterStatus || v.crop_status.includes(filterStatus)));
 
     // Filter by staff
     const matchStaff = filterStaff === 'All' || 
@@ -376,7 +377,6 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
               <tbody className="divide-y divide-slate-100">
                 {paginatedVisits.map(visit => {
                   const hasPhotos = visit.photos && visit.photos.length > 0;
-                  const isProblem = visit.crop_status === 'មានបញ្ហា/ជំងឺ';
                   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
 
                   return (
@@ -445,17 +445,15 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                         )}
                       </td>
 
-                      {/* Status */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          visit.crop_status === 'ល្អ' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : visit.crop_status === 'មធ្យម'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {visit.crop_status}
-                        </span>
+                      {/* Status / Condition (Text, not Tag) */}
+                      <td className="py-2.5 px-3 min-w-[170px] max-w-[240px]">
+                        {visit.crop_status ? (
+                          <div className="text-slate-700 text-xs line-clamp-2 leading-relaxed" title={visit.crop_status}>
+                            {visit.crop_status}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
 
                       {/* Issues & Recommendations */}
@@ -639,16 +637,10 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                     </div>
                   ) : (
                     <div className="p-3.5 pb-0">
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2">
                         <h4 className="font-bold text-sm text-slate-800 truncate">{visit.customers?.name || 'ម្ចាស់ចំការ'}</h4>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                          visit.crop_status === 'ល្អ' 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                            : visit.crop_status === 'មធ្យម'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {visit.crop_status}
+                        <span className="font-mono text-slate-400 text-[11px] shrink-0">
+                          {new Date(visit.visit_date).toLocaleDateString('km-KH')}
                         </span>
                       </div>
                     </div>
@@ -656,27 +648,27 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
 
                   {/* Body Content */}
                   <div className="p-3.5 space-y-2 text-xs text-slate-600">
-                    {primaryPhoto && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-bold text-slate-500">ស្ថានភាព៖</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          visit.crop_status === 'ល្អ' 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                            : visit.crop_status === 'មធ្យម'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
+                    {/* General Condition / Status (as text, not tag) */}
+                    {visit.crop_status && (
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 mb-1">
+                          <Activity size={13} className="text-emerald-600 shrink-0" />
+                          <span>ស្ថានភាពទូទៅ៖</span>
+                        </div>
+                        <p className="text-slate-800 leading-relaxed text-xs line-clamp-3" title={visit.crop_status}>
                           {visit.crop_status}
-                        </span>
+                        </p>
                       </div>
                     )}
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-slate-700">
                         <span className="text-[11px] font-bold text-slate-500">ដំណាំ៖</span>
-                        <span className="font-mono text-slate-400 text-[10px]">
-                          {new Date(visit.visit_date).toLocaleDateString('km-KH')}
-                        </span>
+                        {primaryPhoto && (
+                          <span className="font-mono text-slate-400 text-[10px]">
+                            {new Date(visit.visit_date).toLocaleDateString('km-KH')}
+                          </span>
+                        )}
                       </div>
                       {cardCrops.length > 0 ? (
                         <div className="space-y-1">

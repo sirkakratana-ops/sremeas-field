@@ -124,9 +124,7 @@ export default function MapView({ visits, onSelectVisit }) {
             </strong>
             <span style="color: #475569; font-size: 11px;">ដំណាំ៖ <b>${cropsSummary}</b></span><br/>
             <span style="color: #475569;">បុគ្គលិក៖ <b>${v.staff_name || '—'}</b></span><br/>
-            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin: 4px 0; background: ${isProblem ? '#fee2e2; color: #991b1b;' : '#d1fae5; color: #065f46;'}">
-              ស្ថានភាព៖ ${v.crop_status || '—'}
-            </span><br/>
+            ${v.crop_status ? `<div style="font-size: 11px; color: #334155; margin: 3px 0; line-height: 1.35;">ស្ថានភាពទូទៅ៖ <b>${v.crop_status}</b></div>` : ''}
             ${v.issues_identified ? `<div style="font-size: 10px; color: #b45309; background: #fffbeb; padding: 3px 6px; border-radius: 4px; margin-bottom: 4px;">${v.issues_identified}</div>` : ''}
             <span style="color: #94a3b8; font-size: 10px;">${new Date(v.visit_date).toLocaleDateString('km-KH')}</span>
           </div>
