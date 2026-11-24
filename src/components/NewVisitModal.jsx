@@ -681,20 +681,28 @@ export default function NewVisitModal({
     }
     if (!res.error) return res.data;
 
-    // Attempt 2: fallback without branch, team_members & farmer_history if columns do not exist
+    // Attempt 2: If farmer_history column does not exist in schema, strip farmer_history and pack it into notes, PRESERVING branch & team_members!
     if (res.error.message?.includes('column') || res.error.code === 'PGRST204' || res.error.code === '42703') {
-      const { farmer_history: _fh, branch: _b, team_members: _tm, ...payloadNoBranch } = payload;
+      const { farmer_history, ...payloadPreservingBranch } = payload;
+      let notesWithHistory = payload.notes || '';
+      if (farmer_history && farmer_history.trim() && !notesWithHistory.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+        notesWithHistory = notesWithHistory 
+          ? `[ប្រវត្តិប្រើប្រាស់]: ${farmer_history.trim()}\n${notesWithHistory}` 
+          : `[ប្រវត្តិប្រើប្រាស់]: ${farmer_history.trim()}`;
+      }
+      payloadPreservingBranch.notes = notesWithHistory || null;
+
       let res2;
       if (visitId) {
-        res2 = await supabase.from('field_visits').update(payloadNoBranch).eq('id', visitId).select().single();
+        res2 = await supabase.from('field_visits').update(payloadPreservingBranch).eq('id', visitId).select().single();
       } else {
-        res2 = await supabase.from('field_visits').insert([payloadNoBranch]).select().single();
+        res2 = await supabase.from('field_visits').insert([payloadPreservingBranch]).select().single();
       }
       if (!res2.error) return { ...res2.data, ...payload };
 
-      // Attempt 3: fallback without crops column as well
+      // Attempt 3: only if crops column fails
       if (res2.error.message?.includes('column') || res2.error.code === 'PGRST204' || res2.error.code === '42703') {
-        const { crops: _c, ...payloadLegacy } = payloadNoBranch;
+        const { crops: _c, ...payloadLegacy } = payloadPreservingBranch;
         let res3;
         if (visitId) {
           res3 = await supabase.from('field_visits').update(payloadLegacy).eq('id', visitId).select().single();
@@ -758,7 +766,7 @@ export default function NewVisitModal({
       const payload = {
         visit_date: finalVisitDate,
         staff_name: staffName.trim(),
-        branch: cleanBranchName(branch) || null,
+        branch: cleanBranchName(branch) || cleanBranchName(defaultStaffBranch) || 'ការិយាល័យកណ្តាល',
         team_members: teamMembers,
         customer_id: selectedCustomerId,
         latitude: latitude || null,

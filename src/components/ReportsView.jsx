@@ -160,7 +160,14 @@ export default function ReportsView({
 
       // Branch filter
       if (filterBranch !== 'All') {
-        const b = cleanBranchName(v.branch).toLowerCase();
+        let vBranch = v.branch;
+        if (!vBranch && v.staff_name) {
+          const matchedStaff = staffList.find(s => (s.name || '').trim().toLowerCase() === (v.staff_name || '').trim().toLowerCase());
+          if (matchedStaff && matchedStaff.branch) {
+            vBranch = matchedStaff.branch;
+          }
+        }
+        const b = cleanBranchName(vBranch).toLowerCase();
         if (b !== cleanBranchName(filterBranch).toLowerCase()) return false;
       }
 
