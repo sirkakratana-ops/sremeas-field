@@ -43,6 +43,7 @@ export default function NewVisitModal({
   onCustomerUpdated,
   visitToEdit, 
   duplicateFrom,
+  preselectedCustomer,
   currentUser,
   staffList: propStaffList = []
 }) {
@@ -285,6 +286,35 @@ export default function NewVisitModal({
     }
   }, [propStaffList, isOpen]);
 
+  // Pull Farm Location and Crops directly from Customer Record
+  const pullDataFromCustomer = (cust) => {
+    if (!cust) return;
+
+    // 1. Location Address
+    const addressParts = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean);
+    const fullAddr = addressParts.join(', ');
+    if (fullAddr) {
+      setLocationAddress(fullAddr);
+    } else if (cust.location_address) {
+      setLocationAddress(cust.location_address);
+    }
+
+    // 2. GPS Coordinates
+    if (cust.latitude && cust.longitude) {
+      setLatitude(parseFloat(cust.latitude));
+      setLongitude(parseFloat(cust.longitude));
+    }
+
+    // 3. Crops Info
+    const custCrops = parseCrops(cust.crops, cust.primary_crop, cust.farm_size_ha);
+    if (custCrops && custCrops.length > 0) {
+      setVisitCrops(JSON.parse(JSON.stringify(custCrops)));
+    }
+
+    setPulledNotice(`បានជ្រើសរើស និងទាញយកទិន្នន័យអតិថិជន ${cust.name} (${custCrops.length} មុខដំណាំ)`);
+    setTimeout(() => setPulledNotice(''), 4500);
+  };
+
   // Initialize form when opened or when visitToEdit / duplicateFrom changes
   useEffect(() => {
     if (!isOpen) return;
@@ -398,13 +428,20 @@ export default function NewVisitModal({
       setStaffName(initialStaff);
       setBranch(currentUser?.branch || 'ការិយាល័យកណ្តាល');
       setTeamMembers([]);
-      setSelectedCustomerId('');
-      setLatitude(null);
-      setLongitude(null);
-      setLocationAddress('');
-      setVisitCrops([
-        { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
-      ]);
+      if (preselectedCustomer) {
+        const targetCust = (customers && customers.find(c => c.id === preselectedCustomer.id)) || preselectedCustomer;
+        setSelectedCustomerId(targetCust.id);
+        pullDataFromCustomer(targetCust);
+      } else {
+        setSelectedCustomerId('');
+        setLatitude(null);
+        setLongitude(null);
+        setLocationAddress('');
+        setVisitCrops([
+          { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
+        ]);
+        setPulledNotice('');
+      }
       setCropStatus('');
       setIssuesIdentified('');
       setProductsRecommended('');
@@ -426,41 +463,11 @@ export default function NewVisitModal({
       setEditCustPhone('');
       setEditCustPhoneDuplicate(null);
       setIsCheckingEditCustPhone(false);
-      setPulledNotice('');
       setNewCustCrops([
         { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
       ]);
     }
-  }, [isOpen, visitToEdit, duplicateFrom, currentUser]);
-
-  // Pull Farm Location and Crops directly from Customer Record
-  const pullDataFromCustomer = (cust) => {
-    if (!cust) return;
-
-    // 1. Location Address
-    const addressParts = [cust.village, cust.commune, cust.district, formatProvince(cust.province)].filter(Boolean);
-    const fullAddr = addressParts.join(', ');
-    if (fullAddr) {
-      setLocationAddress(fullAddr);
-    } else if (cust.location_address) {
-      setLocationAddress(cust.location_address);
-    }
-
-    // 2. GPS Coordinates
-    if (cust.latitude && cust.longitude) {
-      setLatitude(parseFloat(cust.latitude));
-      setLongitude(parseFloat(cust.longitude));
-    }
-
-    // 3. Crops Info
-    const custCrops = parseCrops(cust.crops, cust.primary_crop, cust.farm_size_ha);
-    if (custCrops && custCrops.length > 0) {
-      setVisitCrops(JSON.parse(JSON.stringify(custCrops)));
-    }
-
-    setPulledNotice(`បានទាញយកទីតាំង និងដំណាំ (${custCrops.length} មុខ) ពីទិន្នន័យអតិថិជន ${cust.name}`);
-    setTimeout(() => setPulledNotice(''), 4500);
-  };
+  }, [isOpen, visitToEdit, duplicateFrom, preselectedCustomer, currentUser, customers]);
 
   // When a customer is chosen via Search or Dropdown
   const handleSelectCustomer = (cust) => {

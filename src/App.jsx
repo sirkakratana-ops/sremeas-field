@@ -34,6 +34,7 @@ export default function App() {
   const [isNewVisitOpen, setIsNewVisitOpen] = useState(false);
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [duplicateFrom, setDuplicateFrom] = useState(null);
+  const [preselectedCustomer, setPreselectedCustomer] = useState(null);
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
@@ -184,6 +185,7 @@ export default function App() {
     }
     setVisitToEdit(null);
     setDuplicateFrom(null);
+    setPreselectedCustomer(null);
     setIsNewVisitOpen(true);
   };
 
@@ -192,6 +194,7 @@ export default function App() {
       return alert("អ្នកមិនមានសិទ្ធិកែប្រែកំណត់ត្រាចុះចំការទេ! សូមទាក់ទង Admin។");
     }
     setDuplicateFrom(null);
+    setPreselectedCustomer(null);
     setVisitToEdit(visit);
     setIsNewVisitOpen(true);
   };
@@ -201,6 +204,7 @@ export default function App() {
       return alert("អ្នកមិនមានសិទ្ធិចម្លង ឬកត់ត្រាការចុះចំការថ្មីទេ! សូមទាក់ទង Admin។");
     }
     setVisitToEdit(null);
+    setPreselectedCustomer(null);
     setDuplicateFrom(visit);
     setIsNewVisitOpen(true);
   };
@@ -255,6 +259,7 @@ export default function App() {
     }
     setVisitToEdit(null);
     setDuplicateFrom(null);
+    setPreselectedCustomer(cust);
     setIsNewVisitOpen(true);
   };
 
@@ -592,10 +597,12 @@ export default function App() {
         isOpen={isNewVisitOpen}
         visitToEdit={visitToEdit}
         duplicateFrom={duplicateFrom}
+        preselectedCustomer={preselectedCustomer}
         onClose={() => {
           setIsNewVisitOpen(false);
           setVisitToEdit(null);
           setDuplicateFrom(null);
+          setPreselectedCustomer(null);
         }}
         onVisitCreated={handleVisitCreatedOrUpdated}
         customers={customers}
