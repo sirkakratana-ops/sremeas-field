@@ -5,7 +5,7 @@ import {
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
   Send, ExternalLink, ChevronDown, Award
 } from 'lucide-react';
-import { parseCrops, formatProvince, formatDateDMY, hasPermission } from '../staffUtils';
+import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber } from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
 export default function ReportsView({ 
@@ -463,7 +463,7 @@ export default function ReportsView({
       return [
         formatDateDMY(v.visit_date) || '',
         `"${(v.customers?.name || '').replace(/"/g, '""')}"`,
-        `"${(v.customers?.phone || '').replace(/"/g, '""')}"`,
+        `"${(formatPhoneNumber(v.customers?.phone) || '').replace(/"/g, '""')}"`,
         `"${(v.customers?.customer_type || 'កសិករ').replace(/"/g, '""')}"`,
         `"${cropTypesStr.replace(/"/g, '""')}"`,
         `"${varietiesStr.replace(/"/g, '""')}"`,
@@ -1233,7 +1233,7 @@ ${topStaffSummary || '—'}
                       </td>
                       <td className="py-2 px-3">
                         <div className="font-bold text-slate-900">{v.customers?.name || '—'}</div>
-                        {v.customers?.phone && <div className="text-[10px] text-slate-500 font-mono">{v.customers.phone}</div>}
+                        {v.customers?.phone && <div className="text-[10px] text-slate-500 font-mono">{formatPhoneNumber(v.customers.phone)}</div>}
                       </td>
                       <td className="py-2 px-3">
                         <div className="font-medium text-slate-800">{cropTitle}</div>

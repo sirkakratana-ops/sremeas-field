@@ -2,16 +2,17 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Search, User, Phone, MapPin, Sprout, Check, X, 
   UserPlus, RefreshCw, ChevronDown, CheckCircle2, 
-  MapPinOff, Building, Tag, Loader2
+  MapPinOff, Building, Tag, Loader2, Edit
 } from 'lucide-react';
 import { supabase } from '../supabase';
-import { parseCrops, parseBranches, normalizePhone, formatProvince } from '../staffUtils';
+import { parseCrops, parseBranches, normalizePhone, formatProvince, formatPhoneNumber } from '../staffUtils';
 
 export default function CustomerSelectSearch({
   customers = [],
   selectedCustomerId = '',
   onSelectCustomer,
   onAddNewCustomerClick,
+  onEditCustomerClick,
   onResyncCustomerData,
   disabled = false
 }) {
@@ -180,12 +181,24 @@ export default function CustomerSelectSearch({
               {selectedCustomer.phone && (
                 <div className="text-sm sm:text-xs text-emerald-800 font-mono font-bold flex items-center gap-1.5 mt-1">
                   <Phone size={13} className="text-emerald-600" />
-                  <span>{selectedCustomer.phone}</span>
+                  <span>{formatPhoneNumber(selectedCustomer.phone)}</span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-1.5">
+              {onEditCustomerClick && (
+                <button
+                  type="button"
+                  onClick={() => onEditCustomerClick(selectedCustomer)}
+                  title="កែប្រែព័ត៌មានអតិថិជននេះ"
+                  className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs sm:text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors min-h-[34px] sm:min-h-[28px]"
+                >
+                  <Edit size={13} />
+                  <span>កែព័ត៌មាន</span>
+                </button>
+              )}
+
               {onResyncCustomerData && (
                 <button
                   type="button"
@@ -357,7 +370,7 @@ export default function CustomerSelectSearch({
                             ))}
                             {cust.phone && (
                               <span className="font-mono text-xs sm:text-[10px] text-slate-500 font-bold">
-                                {cust.phone}
+                                {formatPhoneNumber(cust.phone)}
                               </span>
                             )}
                           </div>

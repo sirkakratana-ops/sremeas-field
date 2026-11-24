@@ -6,7 +6,7 @@ import {
   Send, UserCheck, X, Check, Filter, RotateCcw, Plus, Copy,
   Activity
 } from 'lucide-react';
-import { parseCrops, hasPermission } from '../staffUtils';
+import { parseCrops, hasPermission, formatPhoneNumber } from '../staffUtils';
 import ShareVisitModal from './ShareVisitModal';
 
 function getLocalDateString(d = new Date()) {
@@ -402,7 +402,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                             href={`tel:${visit.customers.phone}`} 
                             className="font-mono text-[11px] text-emerald-700 hover:underline flex items-center gap-1 mt-0.5"
                           >
-                            <Phone size={10} /> {visit.customers.phone}
+                            <Phone size={10} /> {formatPhoneNumber(visit.customers.phone)}
                           </a>
                         )}
                       </td>

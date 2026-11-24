@@ -5,7 +5,7 @@ import {
   Building, Users, UserCheck, Send, Copy, Check, Clock,
   Activity
 } from 'lucide-react';
-import { parseCrops, hasPermission } from '../staffUtils';
+import { parseCrops, hasPermission, formatPhoneNumber } from '../staffUtils';
 import { copyVisitReportToClipboard } from '../telegramUtils';
 import { isVisitPhotoExpired } from '../imageUtils';
 import ShareVisitModal from './ShareVisitModal';
@@ -79,7 +79,7 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
               {visit.customers?.phone && (
                 <a href={`tel:${visit.customers.phone}`} className="text-emerald-700 text-[11px] font-mono hover:underline flex items-center gap-1 mt-0.5">
                   <Phone size={10} />
-                  <span>{visit.customers.phone}</span>
+                  <span>{formatPhoneNumber(visit.customers.phone)}</span>
                 </a>
               )}
             </div>

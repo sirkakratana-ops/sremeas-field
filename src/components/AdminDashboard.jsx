@@ -6,7 +6,7 @@ import {
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
   Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database, Download
 } from 'lucide-react';
-import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS } from '../staffUtils';
+import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS, formatPhoneNumber, handlePhoneInputChange } from '../staffUtils';
 import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
 import BackupRestoreModal from './BackupRestoreModal';
 
@@ -205,7 +205,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     setEditingStaff(s);
     setName(s.name || '');
     setGender(s.gender || 'ប្រុស');
-    setPhone(s.phone || '');
+    setPhone(formatPhoneNumber(s.phone || ''));
     setDob(toInputDateFormat(s.dob));
     setEmail(s.email || '');
     setRole(s.role || 'បុគ្គលិកទីផ្សារ');
@@ -280,7 +280,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     const payload = {
       name: name.trim(),
       gender: gender || 'ប្រុស',
-      phone: phone.trim() || null,
+      phone: formatPhoneNumber(phone) || null,
       dob: dob || null,
       email: email.trim() || null,
       role: role || 'បុគ្គលិកទីផ្សារ',
@@ -759,7 +759,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         {staffMember.phone ? (
                           <a href={`tel:${staffMember.phone}`} className="font-mono text-emerald-700 font-bold hover:underline flex items-center gap-1 text-[11px]">
-                            <Phone size={11} /> {staffMember.phone}
+                            <Phone size={11} /> {formatPhoneNumber(staffMember.phone)}
                           </a>
                         ) : (
                           <span className="text-slate-300">—</span>
@@ -986,7 +986,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                   <input 
                     type="text" 
                     value={phone} 
-                    onChange={e => setPhone(e.target.value)} 
+                    onChange={e => setPhone(handlePhoneInputChange(e.target.value, phone))} 
                     placeholder="012 345 678"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono"
                   />

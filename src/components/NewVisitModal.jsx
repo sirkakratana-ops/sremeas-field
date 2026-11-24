@@ -8,7 +8,20 @@ import {
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
-import { parseCrops, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl } from '../staffUtils';
+import { 
+  parseCrops, 
+  parseBranches, 
+  getStaffBranches, 
+  getStaffList, 
+  normalizePhone, 
+  formatPhoneNumber, 
+  handlePhoneInputChange, 
+  checkDuplicateCustomerPhone, 
+  formatProvince, 
+  CAMBODIA_PROVINCES, 
+  extractCoordinatesFromMapUrl, 
+  isShortMapUrl 
+} from '../staffUtils';
 import { compressMultipleImages, formatFileSize } from '../imageUtils';
 
 function getLocalDateString(d = new Date()) {
@@ -27,6 +40,7 @@ export default function NewVisitModal({
   onVisitCreated, 
   customers, 
   onCustomerCreated, 
+  onCustomerUpdated,
   visitToEdit, 
   duplicateFrom,
   currentUser,
@@ -96,6 +110,147 @@ export default function NewVisitModal({
       clearTimeout(timer);
     };
   }, [newCustPhone, showAddCustomer, customers]);
+
+  // Edit Customer States
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editCustName, setEditCustName] = useState('');
+  const [editCustGender, setEditCustGender] = useState('ប្រុស');
+  const [editCustType, setEditCustType] = useState('កសិករ');
+  const [editCustPhone, setEditCustPhone] = useState('');
+  const [editCustPhoneDuplicate, setEditCustPhoneDuplicate] = useState(null);
+  const [isCheckingEditCustPhone, setIsCheckingEditCustPhone] = useState(false);
+  const [editCustBranches, setEditCustBranches] = useState([]);
+  const [editCustVillage, setEditCustVillage] = useState('');
+  const [editCustCommune, setEditCustCommune] = useState('');
+  const [editCustDistrict, setEditCustDistrict] = useState('');
+  const [editCustProvince, setEditCustProvince] = useState('');
+  const [editCustCrops, setEditCustCrops] = useState([]);
+  const [isSavingCustomerEdit, setIsSavingCustomerEdit] = useState(false);
+
+  // Real-time verification for phone duplication when editing customer
+  useEffect(() => {
+    if (!editingCustomer) {
+      setEditCustPhoneDuplicate(null);
+      setIsCheckingEditCustPhone(false);
+      return;
+    }
+
+    const norm = normalizePhone(editCustPhone);
+    if (!norm || norm.length < 8) {
+      setEditCustPhoneDuplicate(null);
+      setIsCheckingEditCustPhone(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCheckingEditCustPhone(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await checkDuplicateCustomerPhone(
+          editCustPhone, 
+          editingCustomer.id, 
+          customers, 
+          supabase
+        );
+        if (isMounted) {
+          setEditCustPhoneDuplicate(found);
+          setIsCheckingEditCustPhone(false);
+        }
+      } catch (err) {
+        if (isMounted) setIsCheckingEditCustPhone(false);
+      }
+    }, 280);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [editCustPhone, editingCustomer, customers]);
+
+  const handleOpenEditCustomer = (cust) => {
+    if (!cust) return;
+    setEditingCustomer(cust);
+    setShowAddCustomer(false);
+    setEditCustName(cust.name || '');
+    setEditCustGender(cust.gender || 'ប្រុស');
+    setEditCustType(cust.customer_type || 'កសិករ');
+    setEditCustPhone(formatPhoneNumber(cust.phone || ''));
+    setEditCustPhoneDuplicate(null);
+    setEditCustBranches(parseBranches(cust.branches, cust.branch));
+    setEditCustVillage(cust.village || '');
+    setEditCustCommune(cust.commune || '');
+    setEditCustDistrict(cust.district || '');
+    setEditCustProvince(cust.province || '');
+    setEditCustCrops(parseCrops(cust.crops, cust.primary_crop, cust.farm_size_ha));
+  };
+
+  const handleSaveEditedCustomer = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editCustName.trim()) return alert("សូមបញ្ចូលឈ្មោះអតិថិជន!");
+
+    if (editCustPhoneDuplicate) {
+      return alert(`មិនអាចកែប្រែបានទេ!\nលេខទូរស័ព្ទ «${editCustPhone}» ជារបស់អតិថិជនឈ្មោះ «${editCustPhoneDuplicate.name}» រួចហើយ។`);
+    }
+
+    setIsSavingCustomerEdit(true);
+    const cleanProvince = formatProvince(editCustProvince).trim() || null;
+    const primaryCropString = editCustCrops.map(c => c.crop_type).filter(Boolean).join(', ') || null;
+    const primaryBranchString = editCustBranches.join(', ') || null;
+
+    const payload = {
+      name: editCustName.trim(),
+      gender: editCustGender || 'ប្រុស',
+      customer_type: editCustType || 'កសិករ',
+      phone: formatPhoneNumber(editCustPhone) || null,
+      branches: editCustBranches,
+      branch: primaryBranchString,
+      village: editCustVillage.trim() || null,
+      commune: editCustCommune.trim() || null,
+      district: editCustDistrict.trim() || null,
+      province: cleanProvince,
+      primary_crop: primaryCropString,
+      crops: editCustCrops
+    };
+
+    try {
+      let updatedCustomer = null;
+      let { data, error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id).select().single();
+      
+      if (error && (error.message.includes('column') || error.code === 'PGRST204' || error.code === '42703')) {
+        const { branches: _br, branch: _b, ...payloadNoBranch } = payload;
+        const res2 = await supabase.from('customers').update(payloadNoBranch).eq('id', editingCustomer.id).select().single();
+        if (!res2.error) {
+          updatedCustomer = { ...res2.data, ...payload };
+        } else {
+          const fallbackPayload = {
+            name: editCustName.trim(),
+            phone: formatPhoneNumber(editCustPhone) || null,
+            village: editCustVillage.trim() || null,
+            province: cleanProvince,
+            primary_crop: primaryCropString
+          };
+          const res3 = await supabase.from('customers').update(fallbackPayload).eq('id', editingCustomer.id).select().single();
+          if (res3.error) throw res3.error;
+          updatedCustomer = { ...res3.data, ...payload };
+        }
+      } else if (error) {
+        throw error;
+      } else {
+        updatedCustomer = data;
+      }
+
+      if (onCustomerUpdated && updatedCustomer) {
+        onCustomerUpdated(updatedCustomer);
+      }
+      pullDataFromCustomer(updatedCustomer);
+      setEditingCustomer(null);
+      alert("បានកែប្រែព័ត៌មានអតិថិជនជោគជ័យ!");
+    } catch (err) {
+      alert("មិនអាចកែប្រែព័ត៌មានអតិថិជនបានទេ: " + err.message);
+    } finally {
+      setIsSavingCustomerEdit(false);
+    }
+  };
 
   // Visit Fields
   const [latitude, setLatitude] = useState(null);
@@ -230,9 +385,13 @@ export default function NewVisitModal({
       setMapLinkStatus(null);
       setIsCompressing(false);
       setShowAddCustomer(false);
+      setEditingCustomer(null);
       setNewCustPhone('');
       setNewCustPhoneDuplicate(null);
       setIsCheckingNewCustPhone(false);
+      setEditCustPhone('');
+      setEditCustPhoneDuplicate(null);
+      setIsCheckingEditCustPhone(false);
       setPulledNotice('');
     } else {
       const initialStaff = currentUser?.name || localStorage.getItem('sremeas_staff_name') || '';
@@ -260,9 +419,13 @@ export default function NewVisitModal({
       setMapLinkStatus(null);
       setIsCompressing(false);
       setShowAddCustomer(false);
+      setEditingCustomer(null);
       setNewCustPhone('');
       setNewCustPhoneDuplicate(null);
       setIsCheckingNewCustPhone(false);
+      setEditCustPhone('');
+      setEditCustPhoneDuplicate(null);
+      setIsCheckingEditCustPhone(false);
       setPulledNotice('');
       setNewCustCrops([
         { crop_type: 'ស្វាយចន្ទី', variety: 'M23', farm_size_ha: '', plant_count: '', crop_age: '' }
@@ -449,7 +612,7 @@ export default function NewVisitModal({
       name: newCustName.trim(),
       gender: newCustGender || 'ប្រុស',
       customer_type: newCustType || 'កសិករ',
-      phone: newCustPhone.trim() || null,
+      phone: formatPhoneNumber(newCustPhone) || null,
       branches: newCustBranches,
       branch: primaryBranchString,
       village: newCustVillage.trim() || null,
@@ -474,7 +637,7 @@ export default function NewVisitModal({
         } else {
           const fallbackPayload = {
             name: newCustName.trim(),
-            phone: newCustPhone.trim() || null,
+            phone: formatPhoneNumber(newCustPhone) || null,
             village: newCustVillage.trim() || null,
             province: cleanProvince,
             primary_crop: primaryCropString
@@ -606,6 +769,37 @@ export default function NewVisitModal({
       };
 
       const savedData = await saveVisitToSupabase(payload, visitToEdit?.id);
+
+      // Auto sync customer location & crops to customers table
+      if (selectedCustomerId) {
+        try {
+          const custUpdatePayload = {};
+          if (latitude && longitude) {
+            custUpdatePayload.latitude = latitude;
+            custUpdatePayload.longitude = longitude;
+          }
+          if (locationAddress && locationAddress.trim()) {
+            custUpdatePayload.location_address = locationAddress.trim();
+          }
+          if (visitCrops && visitCrops.length > 0) {
+            custUpdatePayload.crops = visitCrops;
+            custUpdatePayload.primary_crop = primaryCropType;
+          }
+          if (Object.keys(custUpdatePayload).length > 0) {
+            const { data: updatedCustData, error: custUpErr } = await supabase
+              .from('customers')
+              .update(custUpdatePayload)
+              .eq('id', selectedCustomerId)
+              .select()
+              .single();
+            if (!custUpErr && updatedCustData && onCustomerUpdated) {
+              onCustomerUpdated(updatedCustData);
+            }
+          }
+        } catch (syncErr) {
+          console.warn("Could not sync customer details from visit:", syncErr);
+        }
+      }
 
       const customerObj = customers.find(c => c.id === selectedCustomerId);
       const visitWithCustomer = {
@@ -926,7 +1120,7 @@ export default function NewVisitModal({
                       type="text" 
                       placeholder="លេខទូរស័ព្ទ (ឧ. 012 345 678)" 
                       value={newCustPhone} 
-                      onChange={e => setNewCustPhone(e.target.value)}
+                      onChange={e => setNewCustPhone(handlePhoneInputChange(e.target.value, newCustPhone))}
                       className={`w-full bg-white border rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs font-mono min-h-[44px] sm:min-h-[38px] min-w-0 transition-colors ${
                         newCustPhoneDuplicate 
                           ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500' 
@@ -1077,13 +1271,188 @@ export default function NewVisitModal({
                   <span>{newCustPhoneDuplicate ? 'មិនអាចបង្កើត (ស្ទួនលេខទូរស័ព្ទ)' : 'រក្សាទុកអតិថិជនថ្មី & ទាញយកទិន្នន័យ'}</span>
                 </button>
               </div>
+            ) : editingCustomer ? (
+              /* Inline Edit Customer Form */
+              <div className="space-y-3 pt-2.5 border-t border-blue-200 bg-blue-50/40 p-3.5 rounded-2xl border">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-900 text-xs sm:text-[11px] flex items-center gap-1.5">
+                    <Edit size={14} className="text-blue-600" />
+                    <span>កែប្រែព័ត៌មានអតិថិជន: {editingCustomer.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCustomer(null)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5 min-w-0">
+                  <input 
+                    type="text" 
+                    placeholder="ឈ្មោះអតិថិជន *" 
+                    value={editCustName} 
+                    onChange={e => setEditCustName(e.target.value)}
+                    className="col-span-2 w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] font-bold min-w-0"
+                  />
+                  <select
+                    value={editCustGender}
+                    onChange={e => setEditCustGender(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px] min-w-0"
+                  >
+                    <option value="ប្រុស">ប្រុស</option>
+                    <option value="ស្រី">ស្រី</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
+                  <select
+                    value={editCustType}
+                    onChange={e => setEditCustType(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 font-bold min-h-[44px] sm:min-h-[38px] min-w-0"
+                  >
+                    <option value="កសិករ">កសិករ</option>
+                    <option value="ដេប៉ូ">ដេប៉ូ</option>
+                    <option value="ផ្សេងៗ">ផ្សេងៗ</option>
+                  </select>
+                  <div className="min-w-0">
+                    <input 
+                      type="text" 
+                      placeholder="លេខទូរស័ព្ទ (ឧ. 012 345 678)" 
+                      value={editCustPhone} 
+                      onChange={e => setEditCustPhone(handlePhoneInputChange(e.target.value, editCustPhone))}
+                      className={`w-full bg-white border rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs font-mono min-h-[44px] sm:min-h-[38px] min-w-0 transition-colors ${
+                        editCustPhoneDuplicate 
+                          ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500' 
+                          : 'border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                      }`}
+                    />
+                    {isCheckingEditCustPhone && (
+                      <span className="text-xs sm:text-[10px] text-slate-400 flex items-center gap-1 font-normal mt-1">
+                        <Loader2 size={12} className="animate-spin text-blue-600" />
+                        <span>ផ្ទៀងផ្ទាត់លេខ...</span>
+                      </span>
+                    )}
+                    {!isCheckingEditCustPhone && !editCustPhoneDuplicate && normalizePhone(editCustPhone).length >= 8 && (
+                      <span className="text-xs sm:text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                        <CheckCircle2 size={12} />
+                        <span>លេខអាចប្រើបាន</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {editCustPhoneDuplicate && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
+                    <span className="font-bold text-rose-800 block">លេខទូរស័ព្ទនេះមានក្នុងប្រព័ន្ធរួចហើយ!</span>
+                    <span className="text-slate-700">ជារបស់អតិថិជនឈ្មោះ «{editCustPhoneDuplicate.name}» ({editCustPhoneDuplicate.phone || ''})</span>
+                  </div>
+                )}
+
+                {/* Branch selector */}
+                <div className="p-3 bg-white rounded-xl space-y-1.5 text-sm sm:text-xs border border-slate-200">
+                  <label className="font-bold text-slate-700 flex items-center justify-between text-xs sm:text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <Building size={14} className="text-blue-600" />
+                      <span>សាខាអតិថិជន</span>
+                    </span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {branchOptions.map((b, idx) => {
+                      const isSel = editCustBranches.includes(b);
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditCustBranches(prev => 
+                            prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]
+                          )}
+                          className={`px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs sm:text-[11px] font-bold border transition-all flex items-center gap-1 min-h-[34px] sm:min-h-[28px] ${
+                            isSel ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {isSel ? <Check size={12} /> : <Plus size={12} />}
+                          <span>{b}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Crops for editing customer */}
+                <CropsEditor
+                  crops={editCustCrops}
+                  onChange={setEditCustCrops}
+                  title="ដំណាំរបស់អតិថិជន"
+                />
+
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
+                  <input 
+                    type="text" 
+                    placeholder="ភូមិ" 
+                    value={editCustVillage} 
+                    onChange={e => setEditCustVillage(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="ឃុំ / សង្កាត់" 
+                    value={editCustCommune} 
+                    onChange={e => setEditCustCommune(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 min-w-0">
+                  <input 
+                    type="text" 
+                    placeholder="ស្រុក / ខណ្ឌ" 
+                    value={editCustDistrict} 
+                    onChange={e => setEditCustDistrict(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
+                  />
+                  <input 
+                    type="text" 
+                    list="new-visit-khmer-provinces"
+                    placeholder="ជ្រើសរើស ឬវាយខេត្ត..." 
+                    value={editCustProvince} 
+                    onChange={e => setEditCustProvince(e.target.value)}
+                    onBlur={() => setEditCustProvince(prev => formatProvince(prev))}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 min-h-[44px] sm:min-h-[38px] min-w-0"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button 
+                    type="button" 
+                    onClick={handleSaveEditedCustomer}
+                    disabled={isSavingCustomerEdit || Boolean(editCustPhoneDuplicate)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2.5 sm:py-2 rounded-xl text-xs flex items-center justify-center gap-2 min-h-[42px] sm:min-h-[36px] shadow-sm transition-colors"
+                  >
+                    {isSavingCustomerEdit ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    <span>{isSavingCustomerEdit ? 'កំពុងរក្សាទុក...' : 'រក្សាទុកការកែប្រែព័ត៌មាន'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCustomer(null)}
+                    className="px-4 py-2.5 sm:py-2 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 font-bold rounded-xl text-xs min-h-[42px] sm:min-h-[36px] transition-colors"
+                  >
+                    បោះបង់
+                  </button>
+                </div>
+              </div>
             ) : (
               /* Searchable Customer Combobox */
               <CustomerSelectSearch
                 customers={customers}
                 selectedCustomerId={selectedCustomerId}
                 onSelectCustomer={handleSelectCustomer}
-                onAddNewCustomerClick={() => setShowAddCustomer(true)}
+                onAddNewCustomerClick={() => {
+                  setShowAddCustomer(true);
+                  setEditingCustomer(null);
+                }}
+                onEditCustomerClick={handleOpenEditCustomer}
                 onResyncCustomerData={pullDataFromCustomer}
               />
             )}

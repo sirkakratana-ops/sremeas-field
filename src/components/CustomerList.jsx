@@ -7,7 +7,7 @@ import {
   Building, Check, AlertTriangle, AlertCircle, Link
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl, hasPermission } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, formatPhoneNumber, handlePhoneInputChange, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl, hasPermission } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -216,7 +216,7 @@ export default function CustomerList({
       setFormCustomType(cust.customer_type);
     }
 
-    setFormPhone(cust.phone || '');
+    setFormPhone(formatPhoneNumber(cust.phone || ''));
     const custBranches = parseBranches(cust.branches, cust.branch);
     setFormBranches(custBranches.length > 0 ? custBranches : (currentUser?.branch ? [currentUser.branch] : []));
     setCustomBranchInput('');
@@ -338,7 +338,7 @@ export default function CustomerList({
       name: formName.trim(),
       gender: formGender || 'ប្រុស',
       customer_type: resolvedType,
-      phone: formPhone.trim() || null,
+      phone: formatPhoneNumber(formPhone) || null,
       primary_crop: primaryCropString,
       crops: formCrops,
       branches: formBranches,
@@ -363,7 +363,7 @@ export default function CustomerList({
           } else {
             const fallbackPayload = {
               name: formName.trim(),
-              phone: formPhone.trim() || null,
+              phone: formatPhoneNumber(formPhone) || null,
               primary_crop: primaryCropString,
               village: formVillage.trim() || null,
               province: cleanProvince
@@ -388,7 +388,7 @@ export default function CustomerList({
           } else {
             const fallbackPayload = {
               name: formName.trim(),
-              phone: formPhone.trim() || null,
+              phone: formatPhoneNumber(formPhone) || null,
               primary_crop: primaryCropString,
               village: formVillage.trim() || null,
               province: cleanProvince
@@ -625,7 +625,7 @@ export default function CustomerList({
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         {cust.phone ? (
                           <a href={`tel:${cust.phone}`} className="font-mono text-emerald-700 font-bold hover:underline flex items-center gap-1 text-[11px]">
-                            <Phone size={10} /> {cust.phone}
+                            <Phone size={10} /> {formatPhoneNumber(cust.phone)}
                           </a>
                         ) : (
                           <span className="text-slate-300">—</span>
@@ -857,7 +857,7 @@ export default function CustomerList({
                       <div className="flex items-center gap-1.5">
                         <Phone size={12} className="text-slate-400" />
                         <a href={`tel:${cust.phone}`} className="font-mono text-emerald-700 font-bold hover:underline">
-                          {cust.phone}
+                          {formatPhoneNumber(cust.phone)}
                         </a>
                       </div>
                     )}
@@ -1031,7 +1031,7 @@ export default function CustomerList({
                   <input 
                     type="text" 
                     value={formPhone} 
-                    onChange={e => setFormPhone(e.target.value)} 
+                    onChange={e => setFormPhone(handlePhoneInputChange(e.target.value, formPhone))} 
                     placeholder="012 345 678"
                     className={`w-full border rounded-lg p-2 text-xs font-mono transition-colors ${
                       duplicateCustomer 
@@ -1056,7 +1056,7 @@ export default function CustomerList({
                       </div>
                       <div className="text-slate-700 text-xs">
                         ជារបស់អតិថិជនឈ្មោះ <span className="font-bold text-slate-900">«{duplicateCustomer.name}»</span>
-                        {duplicateCustomer.phone && <span className="font-mono text-rose-700 font-bold ml-1">({duplicateCustomer.phone})</span>}
+                        {duplicateCustomer.phone && <span className="font-mono text-rose-700 font-bold ml-1">({formatPhoneNumber(duplicateCustomer.phone)})</span>}
                         {duplicateCustomer.customer_type && <span className="text-slate-500 text-[11px] ml-1">[{duplicateCustomer.customer_type}]</span>}
                       </div>
                       <div className="text-slate-500 text-[11px] flex flex-wrap gap-x-2 gap-y-0.5 pt-0.5">

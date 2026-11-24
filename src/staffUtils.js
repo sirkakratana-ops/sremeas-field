@@ -344,6 +344,32 @@ export function normalizePhone(phone) {
 }
 
 /**
+ * Format phone number to standard Cambodian display: 012 345 678 (9 digits) or 012 345 6789 (10 digits).
+ * Handles raw continuous digits, dashes, spaces, and international +855 prefix.
+ */
+export function formatPhoneNumber(phone) {
+  if (!phone) return '';
+  const norm = normalizePhone(phone);
+  if (!norm) return '';
+
+  const d = norm.slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 10)}`;
+}
+
+/**
+ * Handle user typing phone input dynamically with smooth backspace handling.
+ */
+export function handlePhoneInputChange(rawValue, previousValue = '') {
+  if (previousValue && previousValue.endsWith(' ') && rawValue === previousValue.slice(0, -1)) {
+    return formatPhoneNumber(rawValue.slice(0, -1));
+  }
+  return formatPhoneNumber(rawValue);
+}
+
+/**
  * Generate common Cambodian phone spacing formats for database query matching
  */
 export function getPhoneVariations(phone) {

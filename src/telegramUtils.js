@@ -1,5 +1,5 @@
 // Telegram Share & Bot Utilities for Sremeas Field Reports
-import { parseCrops, formatProvince } from './staffUtils';
+import { parseCrops, formatProvince, formatPhoneNumber } from './staffUtils';
 
 /**
  * Format date in DD/MM/YYYY format
@@ -87,7 +87,7 @@ export function formatVisitTelegramText(visit) {
     `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
     `=============================`,
     `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    `លេខទូរស័ព្ទ: ${visit.customers?.phone || '—'}`,
+    `លេខទូរស័ព្ទ: ${formatPhoneNumber(visit.customers?.phone) || '—'}`,
     `ទីតាំងចំការ: ${locStr}`,
     `ផែនទី GPS: ${mapsUrl}`,
     `----------------------------------------`,
@@ -147,7 +147,7 @@ export function formatVisitTelegramSummary(visit) {
     `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
     `=============================`,
     `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    `លេខទូរស័ព្ទ: ${visit.customers?.phone || '—'}`,
+    `លេខទូរស័ព្ទ: ${formatPhoneNumber(visit.customers?.phone) || '—'}`,
     `ទីតាំងចំការ: ${locStr}`,
     `ដំណាំ: ${cropsSummary}`,
     `ស្ថានភាពទូទៅនៃចម្ការ: ${visit.crop_status || 'ល្អ'}`,

@@ -600,6 +600,7 @@ export default function App() {
         onVisitCreated={handleVisitCreatedOrUpdated}
         customers={customers}
         onCustomerCreated={handleCustomerCreated}
+        onCustomerUpdated={handleCustomerUpdated}
         currentUser={currentUser}
         staffList={staffList}
       />
