@@ -1,5 +1,6 @@
 // Utility functions for Database Backup, SQL Dump, Disaster Recovery & Restore
 // Strictly zero emojis used
+import { extractVisitPurpose, extractFarmerHistory } from './staffUtils';
 
 /**
  * Fetch all records for a table from Supabase with batch pagination to bypass 1000 row limits
@@ -344,10 +345,11 @@ export async function exportCsvBackup(supabase, fallbackStaff = []) {
   downloadFile(custCsv, `sremeas_customers_${timeStr}.csv`, 'text/csv;charset=utf-8;');
 
   // 2. Visits CSV
-  const visitHeaders = ['ID', 'កាលបរិច្ឆេទ', 'អតិថិជន', 'ទូរស័ព្ទ', 'ដំណាំ', 'ទំហំដី (ហ.ត)', 'ស្ថានភាពទូទៅ', 'បញ្ហាប្រឈម', 'ដំណោះស្រាយ/ផលិតផល', 'ទីតាំង', 'បុគ្គលិកចុះ', 'ក្រុមការងារ', 'សាខា', 'រយៈទទឹង (Lat)', 'រយៈបណ្តោយ (Lng)'];
+  const visitHeaders = ['ID', 'កាលបរិច្ឆេទ', 'គោលបំណង', 'អតិថិជន', 'ទូរស័ព្ទ', 'ដំណាំ', 'ទំហំដី (ហ.ត)', 'ស្ថានភាពទូទៅ', 'បញ្ហាប្រឈម', 'ដំណោះស្រាយ/ផលិតផល', 'ប្រវត្តិប្រើប្រាស់', 'ទីតាំង', 'អ្នករាយការណ៍', 'ក្រុមការងារ', 'សាខា', 'រយៈទទឹង (Lat)', 'រយៈបណ្តោយ (Lng)'];
   const visitRows = backupData.fieldVisits.map(v => [
     `"${v.id || ''}"`,
     `"${v.visit_date || ''}"`,
+    `"${(extractVisitPurpose(v) || '').replace(/"/g, '""')}"`,
     `"${(v.customers?.name || '').replace(/"/g, '""')}"`,
     `"${(v.customers?.phone || '').replace(/"/g, '""')}"`,
     `"${(v.crop_type || '').replace(/"/g, '""')}"`,
@@ -355,6 +357,7 @@ export async function exportCsvBackup(supabase, fallbackStaff = []) {
     `"${(v.crop_status || '').replace(/"/g, '""')}"`,
     `"${(v.issues_identified || '').replace(/"/g, '""')}"`,
     `"${(v.products_recommended || '').replace(/"/g, '""')}"`,
+    `"${(extractFarmerHistory(v) || '').replace(/"/g, '""')}"`,
     `"${(v.location_address || '').replace(/"/g, '""')}"`,
     `"${(v.staff_name || '').replace(/"/g, '""')}"`,
     `"${(Array.isArray(v.team_members) ? v.team_members.join(', ') : '').replace(/"/g, '""')}"`,

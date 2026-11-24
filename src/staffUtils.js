@@ -15,6 +15,17 @@ export const VARIETY_SUGGESTIONS = {
   'ម្រេច': ['ម្រេចកំពត', 'ម្រេចពូជខ្មែរ']
 };
 
+export const PURPOSE_SUGGESTIONS = [
+  'ចុះពិនិត្យដំណាំ',
+  'តាមដានការលូតលាស់',
+  'ដោះស្រាយបញ្ហាជំងឺ/សត្វល្អិត',
+  'ណែនាំបច្ចេកទេសប្រើប្រាស់ជី/ថ្នាំ',
+  'ចុះណែនាំផលិតផលថ្មី',
+  'ជួបសំណេះសំណាលកសិករ',
+  'តាមដានប្រសិទ្ធភាពក្រោយប្រើប្រាស់',
+  'វាយតម្លៃទិន្នផលប្រមូលផល'
+];
+
 /**
  * Clean and normalize branch names by stripping zero-width spaces, special whitespace, and trimming.
  */
@@ -655,5 +666,53 @@ export function isShortMapUrl(input) {
   if (!input || typeof input !== 'string') return false;
   return /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(input.trim());
 }
+
+/**
+ * Extract purpose from visit object or parse from notes
+ */
+export function extractVisitPurpose(visit) {
+  if (!visit) return '';
+  if (visit.purpose && typeof visit.purpose === 'string' && visit.purpose.trim()) {
+    return visit.purpose.trim();
+  }
+  const notes = visit.notes || '';
+  if (typeof notes === 'string') {
+    const match = notes.match(/\[គោលបំណង\]:\s*([^\n\r]*)/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return '';
+}
+
+/**
+ * Extract farmer history from visit object or parse from notes
+ */
+export function extractFarmerHistory(visit) {
+  if (!visit) return '';
+  if (visit.farmer_history && typeof visit.farmer_history === 'string' && visit.farmer_history.trim()) {
+    return visit.farmer_history.trim();
+  }
+  const notes = visit.notes || '';
+  if (typeof notes === 'string') {
+    const match = notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n\r]*)/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return '';
+}
+
+/**
+ * Clean notes string to remove embedded metadata like [គោលបំណង]: ... and [ប្រវត្តិប្រើប្រាស់]: ...
+ */
+export function cleanNotesText(rawNotes) {
+  if (!rawNotes || typeof rawNotes !== 'string') return '';
+  return rawNotes
+    .replace(/\[គោលបំណង\]:\s*[^\n\r]*(\r?\n)?/gi, '')
+    .replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n\r]*(\r?\n)?/gi, '')
+    .trim();
+}
+
 
 

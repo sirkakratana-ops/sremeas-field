@@ -369,7 +369,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                   <th className="py-3 px-3 whitespace-nowrap">ស្ថានភាព</th>
                   <th className="py-3 px-3 whitespace-nowrap">បញ្ហា / ផលិតផលណែនាំ</th>
                   <th className="py-3 px-3 whitespace-nowrap">ទីតាំង / GPS</th>
-                  <th className="py-3 px-3 whitespace-nowrap">បុគ្គលិកចុះ</th>
+                  <th className="py-3 px-3 whitespace-nowrap">អ្នករាយការណ៍</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap">រូបភាព</th>
                   <th className="py-3 px-3.5 text-center whitespace-nowrap sticky right-0 bg-slate-50 shadow-xs">សកម្មភាព</th>
                 </tr>
@@ -695,7 +695,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
                     <div className="flex items-center justify-between gap-1 text-slate-500">
                       <div className="flex items-center gap-1.5 truncate">
                         <User size={13} className="text-slate-400 shrink-0" />
-                        <span className="truncate">បុគ្គលិក: <strong>{visit.staff_name}</strong></span>
+                        <span className="truncate">អ្នករាយការណ៍: <strong>{visit.staff_name}</strong></span>
                       </div>
                       {visit.branch && (
                         <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium shrink-0 flex items-center gap-0.5">

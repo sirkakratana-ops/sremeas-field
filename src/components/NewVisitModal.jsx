@@ -4,7 +4,7 @@ import {
   MapPin, Camera, X, Loader2, UserPlus, CheckCircle2, 
   User, Users, Save, Navigation, Sprout, Activity, 
   AlertCircle, Package, Calendar, FileText, Edit, ExternalLink,
-  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock, Link, ChevronDown, Copy
+  Building, UserCheck, Plus, Check, RefreshCw, Sparkles, Clock, Link, ChevronDown, Copy, Target
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
@@ -21,7 +21,11 @@ import {
   formatProvince, 
   CAMBODIA_PROVINCES, 
   extractCoordinatesFromMapUrl, 
-  isShortMapUrl 
+  isShortMapUrl,
+  PURPOSE_SUGGESTIONS,
+  extractVisitPurpose,
+  extractFarmerHistory,
+  cleanNotesText
 } from '../staffUtils';
 import { compressMultipleImages, formatFileSize } from '../imageUtils';
 
@@ -255,6 +259,7 @@ export default function NewVisitModal({
   };
 
   // Visit Fields
+  const [purpose, setPurpose] = useState('');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [mapLinkInput, setMapLinkInput] = useState('');
@@ -346,14 +351,10 @@ export default function NewVisitModal({
       setCropStatus(duplicateFrom.crop_status || '');
       setIssuesIdentified(duplicateFrom.issues_identified || '');
       setProductsRecommended(duplicateFrom.products_recommended || '');
+      setPurpose(extractVisitPurpose(duplicateFrom));
 
-      let rawNotes = duplicateFrom.notes || '';
-      let extractedHistory = duplicateFrom.farmer_history || '';
-      if (rawNotes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
-        const m = rawNotes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
-        if (!extractedHistory && m) extractedHistory = m[1].trim();
-        rawNotes = rawNotes.replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n]*\n?/gi, '').trim();
-      }
+      let rawNotes = cleanNotesText(duplicateFrom.notes || '');
+      let extractedHistory = extractFarmerHistory(duplicateFrom);
       setFarmerHistory(extractedHistory || '');
       setNotes(rawNotes);
       setVisitDate(getLocalDateString(new Date()));
@@ -396,15 +397,10 @@ export default function NewVisitModal({
       setCropStatus(visitToEdit.crop_status || '');
       setIssuesIdentified(visitToEdit.issues_identified || '');
       setProductsRecommended(visitToEdit.products_recommended || '');
+      setPurpose(extractVisitPurpose(visitToEdit));
       
-      // Clean notes so that legacy [ប្រវត្តិប្រើប្រាស់]: prefix is not injected into notes
-      let rawNotes = visitToEdit.notes || '';
-      let extractedHistory = visitToEdit.farmer_history || '';
-      if (rawNotes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
-        const m = rawNotes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
-        if (!extractedHistory && m) extractedHistory = m[1].trim();
-        rawNotes = rawNotes.replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n]*\n?/gi, '').trim();
-      }
+      let rawNotes = cleanNotesText(visitToEdit.notes || '');
+      let extractedHistory = extractFarmerHistory(visitToEdit);
       setFarmerHistory(extractedHistory || '');
       setNotes(rawNotes);
       setVisitDate(visitToEdit.visit_date ? getLocalDateString(visitToEdit.visit_date) : getLocalDateString(new Date()));
@@ -446,6 +442,7 @@ export default function NewVisitModal({
       setCropStatus('');
       setIssuesIdentified('');
       setProductsRecommended('');
+      setPurpose('');
       setFarmerHistory('');
       setNotes('');
       setVisitDate(getLocalDateString(new Date()));
@@ -681,16 +678,17 @@ export default function NewVisitModal({
     }
     if (!res.error) return res.data;
 
-    // Attempt 2: If farmer_history column does not exist in schema, strip farmer_history and pack it into notes, PRESERVING branch & team_members!
+    // Attempt 2: If farmer_history or purpose column does not exist in schema, strip them and pack into notes, PRESERVING branch & team_members!
     if (res.error.message?.includes('column') || res.error.code === 'PGRST204' || res.error.code === '42703') {
-      const { farmer_history, ...payloadPreservingBranch } = payload;
-      let notesWithHistory = payload.notes || '';
-      if (farmer_history && farmer_history.trim() && !notesWithHistory.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
-        notesWithHistory = notesWithHistory 
-          ? `[ប្រវត្តិប្រើប្រាស់]: ${farmer_history.trim()}\n${notesWithHistory}` 
-          : `[ប្រវត្តិប្រើប្រាស់]: ${farmer_history.trim()}`;
+      const { purpose: _p, farmer_history: _fh, ...payloadPreservingBranch } = payload;
+      let notesWithMetadata = payload.notes || '';
+      if (payload.farmer_history && payload.farmer_history.trim() && !notesWithMetadata.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
+        notesWithMetadata = `[ប្រវត្តិប្រើប្រាស់]: ${payload.farmer_history.trim()}${notesWithMetadata ? '\n' + notesWithMetadata : ''}`;
       }
-      payloadPreservingBranch.notes = notesWithHistory || null;
+      if (payload.purpose && payload.purpose.trim() && !notesWithMetadata.includes('[គោលបំណង]:')) {
+        notesWithMetadata = `[គោលបំណង]: ${payload.purpose.trim()}${notesWithMetadata ? '\n' + notesWithMetadata : ''}`;
+      }
+      payloadPreservingBranch.notes = notesWithMetadata || null;
 
       let res2;
       if (visitId) {
@@ -698,7 +696,7 @@ export default function NewVisitModal({
       } else {
         res2 = await supabase.from('field_visits').insert([payloadPreservingBranch]).select().single();
       }
-      if (!res2.error) return { ...res2.data, ...payload };
+      if (!res2.error) return { ...res2.data, ...payload, notes: payload.notes || notesWithMetadata };
 
       // Attempt 3: only if crops column fails
       if (res2.error.message?.includes('column') || res2.error.code === 'PGRST204' || res2.error.code === '42703') {
@@ -709,7 +707,7 @@ export default function NewVisitModal({
         } else {
           res3 = await supabase.from('field_visits').insert([payloadLegacy]).select().single();
         }
-        if (!res3.error) return { ...res3.data, ...payload };
+        if (!res3.error) return { ...res3.data, ...payload, notes: payload.notes || notesWithMetadata };
         throw res3.error;
       }
       throw res2.error;
@@ -768,6 +766,7 @@ export default function NewVisitModal({
         staff_name: staffName.trim(),
         branch: cleanBranchName(branch) || cleanBranchName(defaultStaffBranch) || 'ការិយាល័យកណ្តាល',
         team_members: teamMembers,
+        purpose: purpose.trim() || null,
         customer_id: selectedCustomerId,
         latitude: latitude || null,
         longitude: longitude || null,
@@ -820,6 +819,7 @@ export default function NewVisitModal({
       const customerObj = customers.find(c => c.id === selectedCustomerId);
       const visitWithCustomer = {
         ...savedData,
+        purpose: purpose.trim() || null,
         farmer_history: farmerHistory.trim() || null,
         customers: customerObj || null
       };
@@ -927,7 +927,7 @@ export default function NewVisitModal({
               <div>
                 <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
                   <User size={14} className="text-emerald-600" />
-                  <span>បុគ្គលិកចុះផ្ទាល់ *</span>
+                  <span>អ្នករាយការណ៍ *</span>
                 </label>
                 <div className="relative">
                   <input 
@@ -1072,6 +1072,58 @@ export default function NewVisitModal({
                 >
                   បន្ថែម
                 </button>
+              </div>
+            </div>
+
+            {/* Visit Purpose / គោលបំណងចុះចំការ */}
+            <div className="pt-2.5 border-t border-slate-200/80">
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between text-sm sm:text-xs">
+                <span className="flex items-center gap-1.5">
+                  <Target size={14} className="text-emerald-600" />
+                  <span>គោលបំណងចុះចំការ</span>
+                </span>
+                {purpose && (
+                  <span className="text-xs sm:text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                    {purpose}
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  list="visit-purpose-suggestions"
+                  value={purpose} 
+                  onChange={e => setPurpose(e.target.value)} 
+                  placeholder="ជ្រើសរើស ឬវាយបញ្ចូលគោលបំណង (ឧ. ចុះពិនិត្យដំណាំ, តាមដានការលូតលាស់...)"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium min-h-[44px] sm:min-h-[38px] shadow-2xs"
+                />
+                <datalist id="visit-purpose-suggestions">
+                  {PURPOSE_SUGGESTIONS.map((p, idx) => (
+                    <option key={idx} value={p} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Quick Suggestions Chips */}
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {PURPOSE_SUGGESTIONS.map((p, idx) => {
+                  const isSelected = purpose === p;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setPurpose(isSelected ? '' : p)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition-colors flex items-center gap-1 min-h-[30px] sm:min-h-[26px] ${
+                        isSelected 
+                          ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-2xs' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {isSelected ? <Check size={11} /> : <Plus size={11} />}
+                      <span>{p}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

@@ -5,7 +5,7 @@ import {
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
   Send, ExternalLink, ChevronDown, Award
 } from 'lucide-react';
-import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber, cleanBranchName } from '../staffUtils';
+import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber, cleanBranchName, extractVisitPurpose, extractFarmerHistory } from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
 export default function ReportsView({ 
@@ -445,6 +445,7 @@ export default function ReportsView({
 
     const headers = [
       "កាលបរិច្ឆេទ",
+      "គោលបំណង",
       "ឈ្មោះម្ចាស់ចំការ",
       "លេខទូរស័ព្ទ",
       "ប្រភេទអតិថិជន",
@@ -457,7 +458,7 @@ export default function ReportsView({
       "ប្រវត្តិប្រើប្រាស់",
       "អាសយដ្ឋាន/ទីតាំង",
       "ខេត្ត",
-      "បុគ្គលិកចុះផ្ទាល់",
+      "អ្នករាយការណ៍",
       "ក្រុមការងាររួមដំណើរ",
       "សាខា",
       "Latitude",
@@ -472,9 +473,12 @@ export default function ReportsView({
       const farmSizeStr = crops.map(c => c.farm_size_ha).filter(Boolean).join(', ') || v.farm_size_ha || '';
       const teamStr = Array.isArray(v.team_members) ? v.team_members.join(', ') : (v.team_members || '');
       const mapsUrl = (v.latitude && v.longitude) ? `https://www.google.com/maps?q=${v.latitude},${v.longitude}` : '';
+      const purposeStr = extractVisitPurpose(v);
+      const farmerHistoryStr = extractFarmerHistory(v);
 
       return [
         formatDateDMY(v.visit_date) || '',
+        `"${purposeStr.replace(/"/g, '""')}"`,
         `"${(v.customers?.name || '').replace(/"/g, '""')}"`,
         `"${(formatPhoneNumber(v.customers?.phone) || '').replace(/"/g, '""')}"`,
         `"${(v.customers?.customer_type || 'កសិករ').replace(/"/g, '""')}"`,
@@ -484,7 +488,7 @@ export default function ReportsView({
         `"${(v.crop_status || '').replace(/"/g, '""')}"`,
         `"${(v.issues_identified || '').replace(/"/g, '""')}"`,
         `"${(v.products_recommended || '').replace(/"/g, '""')}"`,
-        `"${(v.farmer_history || '').replace(/"/g, '""')}"`,
+        `"${farmerHistoryStr.replace(/"/g, '""')}"`,
         `"${(v.location_address || '').replace(/"/g, '""')}"`,
         `"${formatProvince(v.customers?.province).replace(/"/g, '""')}"`,
         `"${(v.staff_name || '').replace(/"/g, '""')}"`,

@@ -1,5 +1,11 @@
 // Telegram Share & Bot Utilities for Sremeas Field Reports
-import { parseCrops, formatProvince, formatPhoneNumber } from './staffUtils';
+import { 
+  parseCrops, 
+  formatProvince, 
+  formatPhoneNumber, 
+  extractVisitPurpose, 
+  extractFarmerHistory 
+} from './staffUtils.js';
 
 /**
  * Format date in DD/MM/YYYY format
@@ -27,37 +33,30 @@ export function formatVisitTelegramText(visit) {
   const dateStr = formatTelegramDate(visit.visit_date) || formatTelegramDate(new Date());
 
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
-
-  // Format crops list
-  let cropsDetails = [];
-  if (crops.length > 0) {
-    cropsDetails = crops.map(c => {
-      let parts = [c.crop_type || 'ដំណាំ'];
-      if (c.variety) parts.push(`ពូជ: ${c.variety}`);
-      if (c.farm_size_ha) parts.push(`${c.farm_size_ha} ហ.ត`);
-      if (c.plant_count) parts.push(`${parseInt(c.plant_count, 10).toLocaleString()} ដើម`);
-      if (c.crop_age) parts.push(`អាយុ: ${c.crop_age}`);
-      return `• ${parts.join(' | ')}`;
-    });
-  } else if (visit.crop_type) {
-    cropsDetails = [`• ${visit.crop_type} ${visit.farm_size_ha ? `(${visit.farm_size_ha} ហ.ត)` : ''}`];
-  }
-
-  const conditionLines = [
-    ...cropsDetails,
-    visit.crop_status ? (cropsDetails.length > 0 ? `• ស្ថានភាពជាក់ស្តែង: ${visit.crop_status}` : visit.crop_status) : null
-  ].filter(Boolean);
-  const conditionText = conditionLines.length > 0 ? conditionLines.join('\n') : 'ល្អ';
+  const cropsSummary = crops.length > 0 
+    ? crops.map(c => {
+        let label = c.crop_type || '';
+        const details = [];
+        if (c.variety) details.push(`ពូជ: ${c.variety}`);
+        if (c.farm_size_ha) details.push(`${c.farm_size_ha} ហ.ត`);
+        if (details.length > 0) label += ` (${details.join(', ')})`;
+        return label;
+      }).filter(Boolean).join(', ')
+    : (visit.crop_type || '—');
 
   // Location string
+  const locParts = [
+    visit.customers?.village,
+    visit.customers?.commune,
+    visit.customers?.district,
+    formatProvince(visit.customers?.province)
+  ].filter(Boolean);
   const locStr = visit.location_address || 
-    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, formatProvince(visit.customers?.province)]
-      .filter(Boolean)
-      .join(', ') || 
+    (locParts.length > 0 ? locParts.join(', ') : null) || 
     visit.customers?.village || 
     'មិនបានបញ្ជាក់';
 
-  // Google Maps URL
+  // Google Maps URL: strictly https://www.google.com/maps?q=latitude,longitude
   const mapsUrl = (visit.latitude && visit.longitude) 
     ? `https://www.google.com/maps?q=${visit.latitude},${visit.longitude}` 
     : 'គ្មាន';
@@ -70,99 +69,51 @@ export function formatVisitTelegramText(visit) {
     teamStr = visit.team_members;
   }
 
+  // Visit purpose
+  const purposeText = extractVisitPurpose(visit) || '—';
+
   // Farmer usage history
-  let farmerHistoryText = '';
-  if (visit.farmer_history && visit.farmer_history.trim()) {
-    farmerHistoryText = visit.farmer_history.trim();
-  } else if (visit.notes && visit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:')) {
-    const m = visit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i);
-    if (m) farmerHistoryText = m[1].trim();
-  } else if (visit.notes && visit.notes.trim()) {
-    farmerHistoryText = visit.notes.trim();
-  } else {
-    farmerHistoryText = 'ស្រែមាស';
-  }
+  const farmerHistoryText = extractFarmerHistory(visit) || 'គ្មាន';
 
   const lines = [
-    `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
-    `=============================`,
-    `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    `លេខទូរស័ព្ទ: ${formatPhoneNumber(visit.customers?.phone) || '—'}`,
-    `ទីតាំងចំការ: ${locStr}`,
-    `ផែនទី GPS: ${mapsUrl}`,
-    `----------------------------------------`,
-    `ស្ថានភាពទូទៅនៃចម្ការ:`,
-    conditionText,
-    `----------------------------------------`,
-    `បញ្ហាប្រឈម:`,
-    visit.issues_identified || 'គ្មាន',
-    `----------------------------------------`,
-    `ដំណោះស្រាយ:`,
-    visit.products_recommended || 'គ្មាន',
-    `----------------------------------------`,
-    `ប្រវត្តិប្រើប្រាស់របស់កសិករ:`,
-    farmerHistoryText,
-    `----------------------------------------`,
-    `បុគ្គលិកចុះផ្ទាល់: ${visit.staff_name || '—'}`,
-    `សាខា: ${visit.branch || '—'}`,
-    `ក្រុមការងាររួមដំណើរ: ${teamStr || 'គ្មាន'}`,
-    `កាលបរិច្ឆេទចុះ: ${dateStr}`,
-    `=============================`,
-    `សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`
+    `📋 របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
+    ``,
+    `📅 កាលបរិច្ឆេទ: ${dateStr}`,
+    `👤 អ្នករាយការណ៍: ${visit.staff_name || '—'}`,
+    `👥 អ្នកចូលរួម: ${teamStr || 'គ្មាន'}`,
+    `🏢 សាខា: ${visit.branch || '—'}`,
+    `🎯 គោលបំណង: ${purposeText}`,
+    `━━━━━━━━━━━━━━`,
+    `🧑‍🌾 ព័ត៌មានអតិថិជន`,
+    `• ឈ្មោះអតិថិជន: ${visit.customers?.name || 'មិនស្គាល់'}`,
+    `• អាសយដ្ឋាន: ${locStr}`,
+    `• លេខទូរស័ព្ទ: ${formatPhoneNumber(visit.customers?.phone) || '—'}`,
+    `• ប្រភេទដំណាំ: ${cropsSummary || '—'}`,
+    `• ផែនទី GPS: ${mapsUrl}`,
+    ``,
+    `🌱 ស្ថានភាពទូទៅនៃចម្ការ:`,
+    `${visit.crop_status || 'ល្អ'}`,
+    ``,
+    `⚠️ បញ្ហាប្រឈម:`,
+    `${visit.issues_identified || 'គ្មាន'}`,
+    ``,
+    `✅ ដំណោះស្រាយ:`,
+    `${visit.products_recommended || 'គ្មាន'}`,
+    ``,
+    `🧾 ប្រវត្តិប្រើប្រាស់របស់កសិករ:`,
+    `${farmerHistoryText}`,
+    `━━━━━━━━━━━━━━`,
+    `🙏 សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`
   ];
 
   return lines.join('\n');
 }
 
 /**
- * Format concise summary text for Telegram Share URL (to fit strictly within HTTP GET query limits)
+ * Format concise summary text for Telegram Share URL
  */
 export function formatVisitTelegramSummary(visit) {
-  if (!visit) return '';
-
-  const dateStr = formatTelegramDate(visit.visit_date) || formatTelegramDate(new Date());
-  const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
-  const cropsSummary = crops.map(c => `${c.crop_type}${c.variety ? ` (${c.variety})` : ''}`).filter(Boolean).join(', ') || visit.crop_type || '—';
-
-  const locStr = visit.location_address || 
-    [visit.customers?.village, visit.customers?.commune, visit.customers?.district, formatProvince(visit.customers?.province)]
-      .filter(Boolean)
-      .join(', ') || 
-    visit.customers?.village || 
-    '—';
-
-  let teamStr = '';
-  if (Array.isArray(visit.team_members) && visit.team_members.length > 0) {
-    teamStr = visit.team_members.join(', ');
-  } else if (typeof visit.team_members === 'string' && visit.team_members.trim()) {
-    teamStr = visit.team_members;
-  }
-
-  let farmerHistoryText = visit.farmer_history || 
-    (visit.notes && visit.notes.includes('[ប្រវត្តិប្រើប្រាស់]:') ? visit.notes.match(/\[ប្រវត្តិប្រើប្រាស់\]:\s*([^\n]*)/i)?.[1] : '') || 
-    visit.notes || 
-    'ស្រែមាស';
-
-  const lines = [
-    `របាយការណ៍ជូនថ្នាក់ដឹកនាំពិនិត្យ`,
-    `=============================`,
-    `ម្ចាស់ចំការ: ${visit.customers?.name || 'មិនស្គាល់'}`,
-    `លេខទូរស័ព្ទ: ${formatPhoneNumber(visit.customers?.phone) || '—'}`,
-    `ទីតាំងចំការ: ${locStr}`,
-    `ដំណាំ: ${cropsSummary}`,
-    `ស្ថានភាពទូទៅនៃចម្ការ: ${visit.crop_status || 'ល្អ'}`,
-    `បញ្ហាប្រឈម: ${visit.issues_identified || 'គ្មាន'}`,
-    `ដំណោះស្រាយ: ${visit.products_recommended || 'គ្មាន'}`,
-    `ប្រវត្តិប្រើប្រាស់: ${farmerHistoryText}`,
-    `បុគ្គលិកចុះផ្ទាល់: ${visit.staff_name || '—'}`,
-    `សាខា: ${visit.branch || '—'}`,
-    `ក្រុមការងាររួមដំណើរ: ${teamStr || 'គ្មាន'}`,
-    `កាលបរិច្ឆេទចុះ: ${dateStr}`,
-    `=============================`,
-    `សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`
-  ];
-
-  return lines.join('\n');
+  return formatVisitTelegramText(visit);
 }
 
 /**
@@ -170,10 +121,10 @@ export function formatVisitTelegramSummary(visit) {
  * to prevent Telegram "400 Bad Request" errors.
  */
 export function getTelegramShareUrl(visit) {
-  const summaryText = formatVisitTelegramSummary(visit);
+  const summaryText = formatVisitTelegramText(visit);
   const mapsUrl = (visit.latitude && visit.longitude) 
     ? `https://www.google.com/maps?q=${visit.latitude},${visit.longitude}` 
-    : 'https://sirkakratana-ops.github.io/sremeas-field/';
+    : 'https://www.mkt.sremeas.com';
   
   // Telegram's `t.me/share/url` REQUIRES the `url` query parameter. Without it, it returns "Bad Request"!
   return `https://t.me/share/url?url=${encodeURIComponent(mapsUrl)}&text=${encodeURIComponent(summaryText)}`;
