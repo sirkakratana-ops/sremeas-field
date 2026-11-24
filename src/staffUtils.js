@@ -16,12 +16,23 @@ export const VARIETY_SUGGESTIONS = {
 };
 
 /**
+ * Clean and normalize branch names by stripping zero-width spaces, special whitespace, and trimming.
+ */
+export function cleanBranchName(branch) {
+  if (!branch) return '';
+  return String(branch)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
  * Extract distinct branch names strictly from staff table
  */
 export function getStaffBranches(staffList = []) {
   if (!Array.isArray(staffList)) return ['ការិយាល័យកណ្តាល'];
   const branches = Array.from(new Set(
-    staffList.map(s => (s?.branch || '').trim()).filter(Boolean)
+    staffList.map(s => cleanBranchName(s?.branch)).filter(Boolean)
   )).sort((a, b) => a.localeCompare(b));
   return branches.length > 0 ? branches : ['ការិយាល័យកណ្តាល'];
 }

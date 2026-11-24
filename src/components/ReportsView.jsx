@@ -5,7 +5,7 @@ import {
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
   Send, ExternalLink, ChevronDown, Award
 } from 'lucide-react';
-import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber } from '../staffUtils';
+import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber, cleanBranchName } from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
 export default function ReportsView({ 
@@ -94,8 +94,14 @@ export default function ReportsView({
   // Filter options lists
   const availableBranches = useMemo(() => {
     const set = new Set();
-    staffList.forEach(s => { if (s.branch) set.add(s.branch.trim()); });
-    visits.forEach(v => { if (v.branch) set.add(v.branch.trim()); });
+    staffList.forEach(s => { 
+      const b = cleanBranchName(s.branch);
+      if (b) set.add(b); 
+    });
+    visits.forEach(v => { 
+      const b = cleanBranchName(v.branch);
+      if (b) set.add(b); 
+    });
     return ['All', ...Array.from(set).sort((a,b) => a.localeCompare(b))];
   }, [staffList, visits]);
 
@@ -154,8 +160,8 @@ export default function ReportsView({
 
       // Branch filter
       if (filterBranch !== 'All') {
-        const b = (v.branch || '').trim().toLowerCase();
-        if (b !== filterBranch.trim().toLowerCase()) return false;
+        const b = cleanBranchName(v.branch).toLowerCase();
+        if (b !== cleanBranchName(filterBranch).toLowerCase()) return false;
       }
 
       // Status filter

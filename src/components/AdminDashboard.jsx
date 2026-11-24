@@ -6,7 +6,7 @@ import {
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
   Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database, Download
 } from 'lucide-react';
-import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS, formatPhoneNumber, handlePhoneInputChange } from '../staffUtils';
+import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS, formatPhoneNumber, handlePhoneInputChange, cleanBranchName } from '../staffUtils';
 import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
 import BackupRestoreModal from './BackupRestoreModal';
 
@@ -381,12 +381,12 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
 
     const matchRole = filterRole === 'All' || s.role === filterRole;
     const matchStatus = filterStatus === 'All' || s.status === filterStatus;
-    const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
+    const matchBranch = filterBranch === 'All' || cleanBranchName(s.branch).toLowerCase() === cleanBranchName(filterBranch).toLowerCase();
 
     return matchSearch && matchRole && matchStatus && matchBranch;
   });
 
-  const branches = ['All', ...Array.from(new Set(staffList.map(s => s.branch).filter(Boolean)))];
+  const branches = ['All', ...Array.from(new Set(staffList.map(s => cleanBranchName(s.branch)).filter(Boolean)))];
 
   // 7-day photo retention & cleanup statistics
   const photoStats = getPhotoRetentionStats(visits, 7);

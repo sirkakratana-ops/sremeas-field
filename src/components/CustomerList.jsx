@@ -7,7 +7,7 @@ import {
   Building, Check, AlertTriangle, AlertCircle, Link
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
-import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, formatPhoneNumber, handlePhoneInputChange, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl, hasPermission } from '../staffUtils';
+import { parseCrops, parseBranches, getStaffBranches, getStaffList, normalizePhone, formatPhoneNumber, handlePhoneInputChange, checkDuplicateCustomerPhone, formatProvince, CAMBODIA_PROVINCES, extractCoordinatesFromMapUrl, isShortMapUrl, hasPermission, cleanBranchName } from '../staffUtils';
 
 export default function CustomerList({ 
   customers, 
@@ -159,7 +159,8 @@ export default function CustomerList({
     const matchType = filterType === 'All' || (c.customer_type || 'កសិករ') === filterType;
     const matchGender = filterGender === 'All' || (c.gender || '—') === filterGender;
     const matchCrop = filterCrop === 'All' || crops.some(cr => cr.crop_type === filterCrop);
-    const matchBranch = filterBranch === 'All' || branches.includes(filterBranch);
+    const cleanedFilterBranch = cleanBranchName(filterBranch).toLowerCase();
+    const matchBranch = filterBranch === 'All' || branches.some(b => cleanBranchName(b).toLowerCase() === cleanedFilterBranch);
 
     return matchSearch && matchType && matchGender && matchCrop && matchBranch;
   });

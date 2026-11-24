@@ -11,6 +11,7 @@ import CustomerSelectSearch from './CustomerSelectSearch';
 import { 
   parseCrops, 
   parseBranches, 
+  cleanBranchName,
   getStaffBranches, 
   getStaffList, 
   normalizePhone, 
@@ -757,7 +758,7 @@ export default function NewVisitModal({
       const payload = {
         visit_date: finalVisitDate,
         staff_name: staffName.trim(),
-        branch: branch.trim() || null,
+        branch: cleanBranchName(branch) || null,
         team_members: teamMembers,
         customer_id: selectedCustomerId,
         latitude: latitude || null,
@@ -840,10 +841,14 @@ export default function NewVisitModal({
 
   // All distinct branch options combining staff table branches, user branch and current selection
   const allBranchOptions = useMemo(() => {
-    const set = new Set(branchOptions);
-    if (branch && branch.trim()) set.add(branch.trim());
-    if (currentUser?.branch && currentUser.branch.trim()) set.add(currentUser.branch.trim());
-    if (defaultStaffBranch) set.add(defaultStaffBranch);
+    const set = new Set();
+    branchOptions.forEach(b => {
+      const clean = cleanBranchName(b);
+      if (clean) set.add(clean);
+    });
+    if (branch && cleanBranchName(branch)) set.add(cleanBranchName(branch));
+    if (currentUser?.branch && cleanBranchName(currentUser.branch)) set.add(cleanBranchName(currentUser.branch));
+    if (defaultStaffBranch && cleanBranchName(defaultStaffBranch)) set.add(cleanBranchName(defaultStaffBranch));
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [branchOptions, branch, currentUser, defaultStaffBranch]);
 
@@ -938,16 +943,9 @@ export default function NewVisitModal({
 
               {/* Branch */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between text-sm sm:text-xs">
-                  <span className="flex items-center gap-1.5">
-                    <Building size={14} className="text-emerald-600" />
-                    <span>សាខា *</span>
-                  </span>
-                  {defaultStaffBranch && (
-                    <span className="text-[11px] sm:text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium truncate max-w-[90px]">
-                      ដើម៖ {defaultStaffBranch}
-                    </span>
-                  )}
+                <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 text-sm sm:text-xs">
+                  <Building size={14} className="text-emerald-600" />
+                  <span>សាខា *</span>
                 </label>
                 <div className="relative">
                   <select 
@@ -957,7 +955,7 @@ export default function NewVisitModal({
                   >
                     {allBranchOptions.map((b, idx) => (
                       <option key={idx} value={b}>
-                        {b} {b === defaultStaffBranch ? ' (សាខាដើម)' : ''}
+                        {b}
                       </option>
                     ))}
                   </select>
