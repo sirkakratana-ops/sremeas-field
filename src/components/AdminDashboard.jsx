@@ -4,10 +4,11 @@ import {
   Users, UserPlus, Shield, Key, Phone, Mail, Calendar, 
   MapPin, CheckCircle2, XCircle, Edit, Trash2, Search, 
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
-  Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database
+  Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database, Download
 } from 'lucide-react';
 import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS } from '../staffUtils';
 import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
+import BackupRestoreModal from './BackupRestoreModal';
 
 // Default initial admin in case Supabase table is not yet migrated
 const DEFAULT_INITIAL_ADMIN = {
@@ -45,6 +46,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
   // Modal State for Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
   // Form Fields
   const [name, setName] = useState('');
@@ -574,6 +576,41 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
         )}
       </div>
 
+      {/* Data Backup & Disaster Recovery Card */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-blue-50 rounded-xl text-blue-700 border border-blue-100 shrink-0">
+              <Database size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">
+                  ការបម្រុងទុក & ស្តារទិន្នន័យ (Data Backup & Recovery)
+                </h3>
+                <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                  Zero Data Loss
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                ការពារការបាត់បង់ទិន្នន័យដោយទាញយក Full Backup (.JSON), ឯកសារ SQL Disaster Recovery, ឬ Excel CSV។ អាចស្តារ (Restore) ទិន្នន័យឡើងវិញបានគ្រប់ពេល។
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsBackupModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white transition-all shadow-xs cursor-pointer"
+            >
+              <Download size={14} />
+              <span>គ្រប់គ្រង Backup & Restore</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Top Search & Filter Bar */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
         <div className="relative">
@@ -877,6 +914,19 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
           </div>
         </div>
       )}
+
+      {/* ======================== BACKUP & RESTORE MODAL ======================== */}
+      <BackupRestoreModal 
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        supabase={supabase}
+        currentUser={currentUser}
+        fallbackStaff={staffList}
+        onDataRestored={() => {
+          onRefreshVisits?.();
+          onStaffListChanged?.();
+        }}
+      />
 
       {/* ======================== ADD / EDIT STAFF MODAL ======================== */}
       {isModalOpen && (

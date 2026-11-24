@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User, BarChart3 } from 'lucide-react';
+import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User, BarChart3, Database } from 'lucide-react';
+import BackupRestoreModal from './components/BackupRestoreModal';
 
 import VisitList from './components/VisitList';
 import MapView from './components/MapView';
@@ -34,6 +35,37 @@ export default function App() {
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [duplicateFrom, setDuplicateFrom] = useState(null);
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+
+  // Silent background auto-backup synchronization
+  useEffect(() => {
+    if (visits.length > 0 || customers.length > 0) {
+      try {
+        const snapshot = {
+          app: 'sremeas-field',
+          appNameKh: 'ស្រែមាស - ចុះចំការ',
+          exportedAt: new Date().toISOString(),
+          stats: {
+            totalCustomers: customers.length,
+            totalVisits: visits.length,
+            totalStaff: staffList.length
+          },
+          data: {
+            customers,
+            field_visits: visits.map(v => {
+              const { customers: _c, ...raw } = v;
+              return raw;
+            }),
+            staff: staffList
+          }
+        };
+        localStorage.setItem('sremeas_auto_backup_latest', JSON.stringify(snapshot));
+        localStorage.setItem('sremeas_auto_backup_timestamp', new Date().toISOString());
+      } catch (err) {
+        // Ignore quota warning
+      }
+    }
+  }, [visits, customers, staffList]);
 
   useEffect(() => {
     if (currentUser) {
@@ -316,6 +348,17 @@ export default function App() {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
 
+            {isAdmin && (
+              <button 
+                onClick={() => setIsBackupModalOpen(true)}
+                title="Backup & Restore ទិន្នន័យ"
+                className="hidden sm:flex items-center gap-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-bold px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer border border-slate-200 hover:border-emerald-200"
+              >
+                <Database size={14} className="text-emerald-600" />
+                <span>Backup</span>
+              </button>
+            )}
+
             {canCreateVisit && (
               <button 
                 onClick={handleOpenNewVisit}
@@ -566,6 +609,18 @@ export default function App() {
         onDuplicateVisit={handleDuplicateVisit}
         currentUser={currentUser}
         onClose={() => setSelectedVisitDetail(null)}
+      />
+
+      {/* Backup & Restore Modal */}
+      <BackupRestoreModal 
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        supabase={supabase}
+        currentUser={currentUser}
+        fallbackStaff={staffList}
+        onDataRestored={() => {
+          fetchAll();
+        }}
       />
 
     </div>
