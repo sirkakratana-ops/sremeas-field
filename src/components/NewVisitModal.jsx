@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import CropsEditor from './CropsEditor';
 import CustomerSelectSearch from './CustomerSelectSearch';
+import TeamMemberSearchSelect from './TeamMemberSearchSelect';
 import { 
   parseCrops, 
   parseBranches, 
@@ -533,8 +534,8 @@ export default function NewVisitModal({
     );
   };
 
-  const handleAddCustomMember = () => {
-    const val = customMemberInput.trim();
+  const handleAddCustomMember = (customName = null) => {
+    const val = (typeof customName === 'string' ? customName : customMemberInput).trim();
     if (!val) return;
     if (!teamMembers.includes(val)) {
       setTeamMembers(prev => [...prev, val]);
@@ -988,91 +989,16 @@ export default function NewVisitModal({
 
             </div>
 
-            {/* Team Members / Accompanied Staff */}
+            {/* Team Members / Accompanied Staff Searchable Selector */}
             <div className="pt-2.5 border-t border-slate-200/80">
-              <label className="block font-bold text-slate-700 mb-2 flex items-center justify-between text-sm sm:text-xs">
-                <span className="flex items-center gap-1.5">
-                  <Users size={14} className="text-emerald-600" />
-                  <span>ក្រុមការងារចុះជាមួយ (អ្នកដែលបានទៅជាមួយ)</span>
-                </span>
-                {teamMembers.length > 0 && (
-                  <span className="text-xs sm:text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    {teamMembers.length} នាក់
-                  </span>
-                )}
-              </label>
-
-              {/* Selected Team Members Badges */}
-              {teamMembers.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2.5">
-                  {teamMembers.map((member, idx) => (
-                    <span 
-                      key={idx} 
-                      className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-sm sm:text-xs font-bold flex items-center gap-1.5 shadow-2xs"
-                    >
-                      <UserCheck size={13} className="text-emerald-600" />
-                      <span>{member}</span>
-                      <button 
-                        type="button" 
-                        onClick={() => handleRemoveTeamMember(member)}
-                        className="hover:text-rose-600 p-1 -mr-1"
-                        title="ដកចេញ"
-                      >
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Quick-Pick Registered Colleagues */}
-              {availableColleagues.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-1.5 mb-2.5">
-                  <span className="text-xs sm:text-[10px] text-slate-500 font-bold w-full sm:w-auto">បុគ្គលិកក្នុងបញ្ជី៖</span>
-                  {availableColleagues.slice(0, 8).map(staff => {
-                    const isSelected = teamMembers.includes(staff.name);
-                    return (
-                      <button
-                        key={staff.id}
-                        type="button"
-                        onClick={() => handleToggleTeamMember(staff.name)}
-                        className={`px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs sm:text-[11px] font-bold border transition-all flex items-center gap-1 min-h-[34px] sm:min-h-[28px] ${
-                          isSelected
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {isSelected ? <Check size={12} /> : <Plus size={12} />}
-                        <span>{staff.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Add Custom / Unregistered Team Member Input */}
-              <div className="flex items-center gap-2">
-                <input 
-                  type="text" 
-                  placeholder="+ បញ្ចូលឈ្មោះអ្នករួមដំណើរផ្សេងទៀត (បើមាន)..." 
-                  value={customMemberInput}
-                  onChange={e => setCustomMemberInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddCustomMember();
-                    }
-                  }}
-                  className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 sm:py-1.5 text-sm sm:text-xs text-slate-800 placeholder-slate-400 min-h-[42px] sm:min-h-[36px]"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCustomMember}
-                  className="px-3.5 py-2 sm:px-3 sm:py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-sm sm:text-xs font-bold shadow-2xs min-h-[42px] sm:min-h-[36px] shrink-0"
-                >
-                  បន្ថែម
-                </button>
-              </div>
+              <TeamMemberSearchSelect 
+                staffMembers={staffMembers}
+                currentStaffName={staffName}
+                selectedMembers={teamMembers}
+                onToggleMember={handleToggleTeamMember}
+                onRemoveMember={handleRemoveTeamMember}
+                onAddCustomMember={handleAddCustomMember}
+              />
             </div>
 
             {/* Visit Purpose / គោលបំណងចុះចំការ */}
