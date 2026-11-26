@@ -201,7 +201,33 @@ begin
   where bucket_id = 'visit-photos'
     and created_at < now() - interval '7 days';
 end;
-$$ language plpgsql security definer;`;
+$$ language plpgsql security definer;
+
+-- ==========================================================
+-- 5. បង្កើតតារាងកត់ត្រាការខលសួរសុខទុក្ខភ្ញៀវ (Customer Call Logs Table)
+-- ==========================================================
+create table if not exists customer_calls (
+  id uuid default gen_random_uuid() primary key,
+  customer_id uuid references customers(id) on delete set null,
+  customer_name text not null,
+  customer_phone text,
+  staff_name text not null,
+  branch text default 'ការិយាល័យកណ្តាល',
+  call_date timestamp with time zone default now(),
+  call_type text default 'សួរសុខទុក្ខទូទៅ',
+  customer_feedback text not null,
+  team_advice text not null,
+  customer_decision text not null,
+  next_followup_date date,
+  notes text,
+  created_at timestamp with time zone default now()
+);
+
+alter table customer_calls enable row level security;
+create policy "Allow all access to customer_calls" 
+  on customer_calls for all 
+  using (true) 
+  with check (true);`;
 
 /**
  * Calculate age automatically from Date of Birth (YYYY-MM-DD or DD-MM-YYYY)

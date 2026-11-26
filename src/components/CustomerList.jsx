@@ -13,6 +13,7 @@ export default function CustomerList({
   customers, 
   onOpenNewCustomer, 
   onSelectCustomerForVisit, 
+  onOpenNewCall,
   onCustomerCreated,
   onCustomerUpdated, 
   onCustomerDeleted,
@@ -712,6 +713,19 @@ export default function CustomerList({
                             </button>
                           )}
 
+                          {/* New Call Shortcut */}
+                          {onOpenNewCall && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenNewCall(cust)}
+                              title="កត់ត្រាការខលសួរសុខទុក្ខ"
+                              className="px-2 py-1 text-sky-700 font-bold bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors border border-sky-200 text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Phone size={11} />
+                              <span>ខល</span>
+                            </button>
+                          )}
+
                           {/* Edit */}
                           {canEdit && (
                             <button
@@ -885,15 +899,26 @@ export default function CustomerList({
                   </div>
                 </div>
 
-                {canCreateVisit && (
-                  <div className="pt-3 mt-3 border-t border-slate-100 flex justify-end">
-                    <button
-                      onClick={() => onSelectCustomerForVisit(cust)}
-                      className="w-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200 flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <ClipboardList size={13} />
-                      <span>កត់ត្រាការចុះជួប</span>
-                    </button>
+                {(canCreateVisit || onOpenNewCall) && (
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center gap-2">
+                    {canCreateVisit && (
+                      <button
+                        onClick={() => onSelectCustomerForVisit(cust)}
+                        className="flex-1 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-emerald-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <ClipboardList size={13} />
+                        <span>កត់ត្រាការចុះជួប</span>
+                      </button>
+                    )}
+                    {onOpenNewCall && (
+                      <button
+                        onClick={() => onOpenNewCall(cust)}
+                        className="flex-1 bg-slate-50 hover:bg-sky-50 hover:text-sky-700 text-slate-700 font-bold py-1.5 rounded-lg text-xs transition-colors border border-slate-200 hover:border-sky-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Phone size={13} />
+                        <span>ខលសួរសុខទុក្ខ</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

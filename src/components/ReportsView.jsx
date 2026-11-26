@@ -3,9 +3,19 @@ import {
   BarChart3, PieChart, TrendingUp, Printer, Download, FileSpreadsheet, 
   Calendar, Filter, Users, ClipboardList, Layers, Activity, AlertTriangle, 
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
-  Send, ExternalLink, ChevronDown, Award
+  Send, ExternalLink, ChevronDown, Award, Target
 } from 'lucide-react';
-import { parseCrops, formatProvince, formatDateDMY, hasPermission, formatPhoneNumber, cleanBranchName, extractVisitPurpose, extractFarmerHistory } from '../staffUtils';
+import { 
+  parseCrops, 
+  formatProvince, 
+  formatDateDMY, 
+  hasPermission, 
+  formatPhoneNumber, 
+  cleanBranchName, 
+  extractVisitPurpose, 
+  extractFarmerHistory,
+  getStaffPhotoUrl
+} from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
 export default function ReportsView({ 
@@ -23,7 +33,6 @@ export default function ReportsView({
   const [filterStaff, setFilterStaff] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
   const [filterCrop, setFilterCrop] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
   const [filterProvince, setFilterProvince] = useState('All');
   const [chartType, setChartType] = useState('area'); // 'area' | 'bar'
   const [hoveredSlice, setHoveredSlice] = useState(null);
@@ -171,11 +180,6 @@ export default function ReportsView({
         if (b !== cleanBranchName(filterBranch).toLowerCase()) return false;
       }
 
-      // Status filter
-      if (filterStatus !== 'All') {
-        if (v.crop_status !== filterStatus) return false;
-      }
-
       // Crop filter
       if (filterCrop !== 'All') {
         const crops = parseCrops(v.crops, v.crop_type, v.farm_size_ha);
@@ -191,28 +195,51 @@ export default function ReportsView({
 
       return true;
     });
-  }, [visits, dateRange, filterStaff, filterBranch, filterCrop, filterStatus, filterProvince]);
+  }, [visits, dateRange, filterStaff, filterBranch, filterCrop, filterProvince]);
 
   // Aggregate Key Metrics (KPIs)
   const stats = useMemo(() => {
     const totalVisits = filteredVisits.length;
     const uniqueCustomerIds = new Set();
     let totalHectares = 0;
-    let issuesCount = 0;
     const staffSet = new Set();
+    let totalStaffInvolvements = 0;
+    let totalReportedInvolvements = 0;
+    let totalParticipatedInvolvements = 0;
 
     filteredVisits.forEach(v => {
       if (v.customer_id) uniqueCustomerIds.add(v.customer_id);
       else if (v.customers?.name) uniqueCustomerIds.add(v.customers.name);
 
-      if (v.staff_name) staffSet.add(v.staff_name.trim());
-      if (Array.isArray(v.team_members)) {
-        v.team_members.forEach(m => { if (m) staffSet.add(m.trim()); });
+      const reporter = (v.staff_name || '').trim();
+      if (reporter) {
+        staffSet.add(reporter);
+        totalStaffInvolvements++;
+        totalReportedInvolvements++;
       }
 
-      if (v.crop_status === 'មានបញ្ហា/ជំងឺ') {
-        issuesCount++;
+      // Parse team members
+      let team = [];
+      if (Array.isArray(v.team_members)) {
+        team = v.team_members;
+      } else if (typeof v.team_members === 'string' && v.team_members.trim()) {
+        try {
+          const parsed = JSON.parse(v.team_members);
+          if (Array.isArray(parsed)) team = parsed;
+          else team = v.team_members.split(',').map(s => s.trim());
+        } catch {
+          team = v.team_members.split(',').map(s => s.trim());
+        }
       }
+
+      team.forEach(m => {
+        const mem = (m || '').trim();
+        if (mem && mem.toLowerCase() !== reporter.toLowerCase()) {
+          staffSet.add(mem);
+          totalStaffInvolvements++;
+          totalParticipatedInvolvements++;
+        }
+      });
 
       const crops = parseCrops(v.crops, v.crop_type, v.farm_size_ha);
       crops.forEach(c => {
@@ -233,15 +260,15 @@ export default function ReportsView({
     }
 
     const avgVisitsPerDay = totalVisits > 0 ? (totalVisits / dayCount).toFixed(1) : '0';
-    const issuesRate = totalVisits > 0 ? Math.round((issuesCount / totalVisits) * 100) : 0;
 
     return {
       totalVisits,
       uniqueFarmers: uniqueCustomerIds.size,
       totalHectares: Math.round(totalHectares * 10) / 10,
-      issuesCount,
-      issuesRate,
       activeStaffCount: staffSet.size,
+      totalStaffInvolvements,
+      totalReportedInvolvements,
+      totalParticipatedInvolvements,
       avgVisitsPerDay
     };
   }, [filteredVisits, dateRange]);
@@ -324,53 +351,95 @@ export default function ReportsView({
     }));
   }, [filteredVisits]);
 
-  // Chart 3: Crop Health Status Distribution
-  const statusDistribution = useMemo(() => {
-    let good = 0;
-    let moderate = 0;
-    let issues = 0;
-
+  // Chart 3: Visit Purposes Distribution
+  const purposeDistributionData = useMemo(() => {
+    const counts = {};
     filteredVisits.forEach(v => {
-      if (v.crop_status === 'ល្អ') good++;
-      else if (v.crop_status === 'មធ្យម') moderate++;
-      else if (v.crop_status === 'មានបញ្ហា/ជំងឺ') issues++;
-      else good++;
+      const p = extractVisitPurpose(v) || 'ចុះពិនិត្យដំណាំទូទៅ';
+      counts[p] = (counts[p] || 0) + 1;
     });
 
+    const sorted = Object.entries(counts)
+      .map(([purpose, count]) => ({ purpose, count }))
+      .sort((a, b) => b.count - a.count);
+
     const total = filteredVisits.length || 1;
-    return [
-      { label: 'ល្អ', count: good, color: '#10b981', percentage: Math.round((good / total) * 100) },
-      { label: 'មធ្យម', count: moderate, color: '#f59e0b', percentage: Math.round((moderate / total) * 100) },
-      { label: 'មានបញ្ហា/ជំងឺ', count: issues, color: '#f43f5e', percentage: Math.round((issues / total) * 100) }
-    ];
+    const maxCount = Math.max(...sorted.map(s => s.count), 1);
+
+    return sorted.map(item => ({
+      ...item,
+      percentage: Math.round((item.count / total) * 100),
+      relativePercent: Math.round((item.count / maxCount) * 100)
+    })).slice(0, 6);
   }, [filteredVisits]);
 
-  // Chart 4: Top Performing Staff
+  // Chart 4: Top Performing Staff (Combines Reporter + Participant visits!)
+  // Example: Makara reported 5, participated in 5 -> Total = 10!
   const topStaffData = useMemo(() => {
-    const counts = {};
+    const reportedCounts = {};
+    const participatedCounts = {};
+    const totalCounts = {};
     const farmerSets = {};
 
     filteredVisits.forEach(v => {
-      const st = (v.staff_name || 'Admin').trim();
-      counts[st] = (counts[st] || 0) + 1;
-      if (!farmerSets[st]) farmerSets[st] = new Set();
-      if (v.customer_id) farmerSets[st].add(v.customer_id);
-      else if (v.customers?.name) farmerSets[st].add(v.customers.name);
+      const reporter = (v.staff_name || '').trim();
+      if (reporter) {
+        reportedCounts[reporter] = (reportedCounts[reporter] || 0) + 1;
+        totalCounts[reporter] = (totalCounts[reporter] || 0) + 1;
+        if (!farmerSets[reporter]) farmerSets[reporter] = new Set();
+        if (v.customer_id) farmerSets[reporter].add(v.customer_id);
+        else if (v.customers?.name) farmerSets[reporter].add(v.customers.name);
+      }
+
+      // Parse accompanied team members
+      let team = [];
+      if (Array.isArray(v.team_members)) {
+        team = v.team_members;
+      } else if (typeof v.team_members === 'string' && v.team_members.trim()) {
+        try {
+          const parsed = JSON.parse(v.team_members);
+          if (Array.isArray(parsed)) team = parsed;
+          else team = v.team_members.split(',').map(s => s.trim());
+        } catch {
+          team = v.team_members.split(',').map(s => s.trim());
+        }
+      }
+
+      team.forEach(m => {
+        const mem = (m || '').trim();
+        if (mem && mem.toLowerCase() !== reporter.toLowerCase()) {
+          participatedCounts[mem] = (participatedCounts[mem] || 0) + 1;
+          totalCounts[mem] = (totalCounts[mem] || 0) + 1;
+          if (!farmerSets[mem]) farmerSets[mem] = new Set();
+          if (v.customer_id) farmerSets[mem].add(v.customer_id);
+          else if (v.customers?.name) farmerSets[mem].add(v.customers.name);
+        }
+      });
     });
 
-    const maxVisits = Math.max(...Object.values(counts), 1);
-    const sorted = Object.entries(counts)
-      .map(([name, count]) => ({
-        name,
-        count,
-        uniqueFarms: farmerSets[name]?.size || count,
-        percentage: Math.round((count / maxVisits) * 100)
-      }))
+    const maxVisits = Math.max(...Object.values(totalCounts), 1);
+    const sorted = Object.entries(totalCounts)
+      .map(([name, count]) => {
+        const reportedCount = reportedCounts[name] || 0;
+        const participatedCount = participatedCounts[name] || 0;
+        const matchedStaff = staffList.find(s => (s.name || '').trim().toLowerCase() === name.toLowerCase());
+        const photoUrl = getStaffPhotoUrl(matchedStaff);
+
+        return {
+          name,
+          count, // Total (reported + participated)
+          reportedCount,
+          participatedCount,
+          photoUrl,
+          uniqueFarms: farmerSets[name]?.size || count,
+          percentage: Math.round((count / maxVisits) * 100)
+        };
+      })
       .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+      .slice(0, 10);
 
     return sorted;
-  }, [filteredVisits]);
+  }, [filteredVisits, staffList]);
 
   // Chart 5: Province Distribution
   const provinceData = useMemo(() => {
@@ -528,7 +597,7 @@ export default function ReportsView({
     setTelegramStatus(null);
 
     const cropsSummary = cropDistributionData.slice(0, 4).map(c => `• ${c.name}: ${c.count} លើក (${c.percentage}%)`).join('\n');
-    const topStaffSummary = topStaffData.slice(0, 4).map((s, idx) => `${idx + 1}. ${s.name}: ${s.count} លើក`).join('\n');
+    const topStaffSummary = topStaffData.slice(0, 5).map((s, idx) => `${idx + 1}. ${s.name}: ${s.count} លើក (រាយការណ៍ ${s.reportedCount} • ចូលរួម ${s.participatedCount})`).join('\n');
     const issuesSummary = topIssuesList.length > 0 ? topIssuesList.map(i => `• ${i.issue}: ${i.count} ករណី`).join('\n') : 'មិនមានបញ្ហាធ្ងន់ធ្ងរ';
 
     const text = `របាយការណ៍សង្ខេបការចុះចំការ
@@ -541,8 +610,8 @@ export default function ReportsView({
 - សរុបការចុះចំការ: ${stats.totalVisits} លើក
 - កសិករបានជួប: ${stats.uniqueFarmers} នាក់
 - ផ្ទៃដីសរុប: ${stats.totalHectares} ហិកតា
-- ចំការមានបញ្ហា: ${stats.issuesCount} ករណី (${stats.issuesRate}%)
-- បុគ្គលិកសកម្ម: ${stats.activeStaffCount} នាក់
+- បុគ្គលិកចុះផ្ទាល់: ${stats.activeStaffCount} នាក់ (${stats.totalStaffInvolvements} នាក់-លើក)
+- មធ្យមភាគប្រចាំថ្ងៃ: ${stats.avgVisitsPerDay} លើក/ថ្ងៃ
 ----------------------------------------
 ប្រភេទដំណាំសំខាន់ៗ:
 ${cropsSummary || '—'}
@@ -550,7 +619,7 @@ ${cropsSummary || '—'}
 បញ្ហាប្រឈមជួបប្រទះច្រើន:
 ${issuesSummary}
 ----------------------------------------
-បុគ្គលិកចុះច្រើនជាងគេ:
+ចំណាត់ថ្នាក់បុគ្គលិកចុះច្រើនជាងគេ (រាយការណ៍ + ចូលរួម):
 ${topStaffSummary || '—'}
 =============================
 សូមថ្នាក់ដឹកនាំពិនិត្យ និងផ្តល់យោបល់`;
@@ -585,7 +654,6 @@ ${topStaffSummary || '—'}
     setFilterStaff('All');
     setFilterBranch('All');
     setFilterCrop('All');
-    setFilterStatus('All');
     setFilterProvince('All');
     setSearchTable('');
     setTablePage(1);
@@ -596,7 +664,6 @@ ${topStaffSummary || '—'}
     filterStaff !== 'All' || 
     filterBranch !== 'All' || 
     filterCrop !== 'All' || 
-    filterStatus !== 'All' || 
     filterProvince !== 'All' ||
     searchTable
   );
@@ -789,18 +856,6 @@ ${topStaffSummary || '—'}
               </select>
             </div>
 
-            {/* Status Filter */}
-            <select
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 font-bold"
-            >
-              <option value="All">គ្រប់ស្ថានភាពដំណាំ</option>
-              <option value="ល្អ">ល្អ</option>
-              <option value="មធ្យម">មធ្យម</option>
-              <option value="មានបញ្ហា/ជំងឺ">មានបញ្ហា/ជំងឺ</option>
-            </select>
-
             {/* Province Filter */}
             <select
               value={filterProvince}
@@ -850,7 +905,7 @@ ${topStaffSummary || '—'}
       </div>
 
       {/* ======================= EXECUTIVE KPI STAT CARDS ======================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         
         {/* Metric 1: Total Visits */}
         <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
@@ -888,32 +943,22 @@ ${topStaffSummary || '—'}
           </div>
         </div>
 
-        {/* Metric 4: Farms with Issues */}
-        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold text-slate-600">ចំការមានបញ្ហា</span>
-            <AlertTriangle size={16} className="text-rose-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-xl font-black text-rose-700">{stats.issuesCount.toLocaleString()}</div>
-            <div className="text-[10px] text-rose-600 font-bold mt-0.5">{stats.issuesRate}% នៃចំការសរុប</div>
-          </div>
-        </div>
-
-        {/* Metric 5: Active Staff Members */}
+        {/* Metric 4: Active Staff Members (Combines Reporters and Participants) */}
         <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold text-slate-600">បុគ្គលិកចុះផ្ទាល់</span>
             <UserCheck size={16} className="text-indigo-600" />
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-slate-900">{stats.activeStaffCount}</div>
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">នាក់ បានចុះបំពេញការងារ</div>
+            <div className="text-xl font-black text-slate-900">{stats.activeStaffCount} នាក់</div>
+            <div className="text-[10px] text-slate-500 font-bold mt-0.5">
+              សរុប {stats.totalStaffInvolvements} នាក់-លើក <span className="font-normal text-slate-400">({stats.totalReportedInvolvements} រាយការណ៍ • {stats.totalParticipatedInvolvements} ចូលរួម)</span>
+            </div>
           </div>
         </div>
 
-        {/* Metric 6: Average Visits per Day */}
-        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* Metric 5: Average Visits per Day */}
+        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold text-slate-600">មធ្យមភាគប្រចាំថ្ងៃ</span>
             <Activity size={16} className="text-teal-600" />
@@ -1044,32 +1089,36 @@ ${topStaffSummary || '—'}
       {/* ======================= GRAPHIC CHARTS ROW 2: HEALTH, LEADERBOARD, PROVINCE ======================= */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        {/* CHART 3: CROP HEALTH & KEY ISSUES */}
+        {/* CHART 3: VISIT PURPOSES & KEY ISSUES */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="pb-3 border-b border-slate-100">
             <h3 className="font-bold text-xs md:text-sm text-slate-900 flex items-center gap-1.5">
-              <Activity size={16} className="text-teal-600" />
-              <span>ស្ថានភាពសុខភាពដំណាំ (Crop Health)</span>
+              <Target size={16} className="text-teal-600" />
+              <span>គោលបំណងចុះចំការ (Visit Purposes)</span>
             </h3>
-            <p className="text-[11px] text-slate-500 font-medium">អត្រាចំការល្អ មធ្យម និងមានបញ្ហា</p>
+            <p className="text-[11px] text-slate-500 font-medium">ស្ថិតិគោលបំណងចុះជួបកសិករ</p>
           </div>
 
-          {/* Health Gauge Bars */}
-          <div className="space-y-3 py-3">
-            {statusDistribution.map((st, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-700">{st.label}</span>
-                  <span style={{ color: st.color }}>{st.count} លើក ({st.percentage}%)</span>
+          {/* Purpose Progress Bars */}
+          <div className="space-y-2.5 py-2.5">
+            {purposeDistributionData.length > 0 ? (
+              purposeDistributionData.map((pItem, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-bold text-slate-800 truncate">{pItem.purpose}</span>
+                    <span className="font-bold text-teal-700 shrink-0">{pItem.count} លើក <span className="text-[10px] text-slate-400 font-normal">({pItem.percentage}%)</span></span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full bg-teal-600 transition-all duration-500" 
+                      style={{ width: `${pItem.relativePercent}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700" 
-                    style={{ width: `${st.percentage}%`, backgroundColor: st.color }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="py-6 text-center text-slate-400 text-xs">មិនទាន់មានទិន្នន័យ</div>
+            )}
           </div>
 
           {/* Top Identified Issues */}
@@ -1090,37 +1139,59 @@ ${topStaffSummary || '—'}
           </div>
         </div>
 
-        {/* CHART 4: TOP PERFORMING STAFF LEADERBOARD */}
+        {/* CHART 4: TOP PERFORMING STAFF LEADERBOARD (Reporter + Participants Combined!) */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="pb-3 border-b border-slate-100">
-            <h3 className="font-bold text-xs md:text-sm text-slate-900 flex items-center gap-1.5">
-              <Award size={16} className="text-amber-500" />
-              <span>ចំណាត់ថ្នាក់បុគ្គលិកចុះចំការ (Staff Ranking)</span>
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium">បុគ្គលិកចុះចំការសកម្មជាងគេ</p>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-xs md:text-sm text-slate-900 flex items-center gap-1.5">
+                <Award size={16} className="text-amber-500" />
+                <span>ចំណាត់ថ្នាក់បុគ្គលិកចុះចំការ</span>
+              </h3>
+              <span className="text-[10px] bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                រាយការណ៍ + ចូលរួម
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              បូកសរុបទាំងអ្នករាយការណ៍ និងអ្នកចូលរួម
+            </p>
           </div>
 
           {/* Staff Progress Bars */}
-          <div className="space-y-2.5 py-2">
+          <div className="space-y-3 py-2">
             {topStaffData.length > 0 ? (
               topStaffData.map((staff, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-800 truncate">
-                      <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                    <div className="flex items-center gap-2 font-bold text-slate-800 truncate">
+                      <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold shrink-0 ${
                         idx === 0 ? 'bg-amber-100 text-amber-800' :
                         idx === 1 ? 'bg-slate-200 text-slate-700' :
                         idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-500'
                       }`}>
                         {idx + 1}
                       </span>
+                      {staff.photoUrl ? (
+                        <img 
+                          src={staff.photoUrl} 
+                          alt={staff.name} 
+                          className="w-5 h-5 rounded-md object-cover aspect-square border border-slate-200 shrink-0" 
+                        />
+                      ) : (
+                        <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] flex items-center justify-center shrink-0">
+                          {staff.name[0]}
+                        </span>
+                      )}
                       <span className="truncate">{staff.name}</span>
                     </div>
+
                     <div className="text-right shrink-0">
-                      <span className="font-bold text-emerald-800">{staff.count} លើក</span>
-                      <span className="text-[10px] text-slate-400 ml-1">({staff.uniqueFarms} ចំការ)</span>
+                      <span className="font-black text-emerald-800">{staff.count} លើក</span>
+                      <div className="text-[10px] text-slate-500 font-medium">
+                        រាយការណ៍ {staff.reportedCount} • ចូលរួម {staff.participatedCount}
+                      </div>
                     </div>
                   </div>
+
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ${

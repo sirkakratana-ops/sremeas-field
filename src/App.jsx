@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User, BarChart3, Database } from 'lucide-react';
+import { Plus, Map, ClipboardList, Users, RefreshCw, Sprout, ShieldCheck, LogOut, User, BarChart3, Database, PhoneCall } from 'lucide-react';
 import BackupRestoreModal from './components/BackupRestoreModal';
 
 import VisitList from './components/VisitList';
@@ -11,8 +11,12 @@ import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
 import ReportsView from './components/ReportsView';
-import { getStaffList, hasPermission } from './staffUtils';
+import EditProfileModal from './components/EditProfileModal';
+import CallList from './components/CallList';
+import NewCallModal from './components/NewCallModal';
+import { getStaffList, hasPermission, getStaffPhotoUrl } from './staffUtils';
 import { deleteVisitPhotosFromStorage, cleanupExpiredVisitPhotos } from './imageUtils';
+import { fetchCustomerCalls } from './callUtils';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -24,10 +28,11 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'reports' | 'map' | 'customers' | 'admin'
+  const [activeTab, setActiveTab] = useState('visits'); // 'visits' | 'reports' | 'calls' | 'map' | 'customers' | 'admin'
   const [visits, setVisits] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -37,6 +42,9 @@ export default function App() {
   const [preselectedCustomer, setPreselectedCustomer] = useState(null);
   const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isNewCallModalOpen, setIsNewCallModalOpen] = useState(false);
+  const [callPreselectedCustomer, setCallPreselectedCustomer] = useState(null);
 
   // Silent background auto-backup synchronization
   useEffect(() => {
@@ -95,8 +103,17 @@ export default function App() {
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchVisits(), fetchCustomers(), fetchStaff()]);
+    await Promise.all([fetchVisits(), fetchCustomers(), fetchStaff(), fetchCalls()]);
     setLoading(false);
+  };
+
+  const fetchCalls = async () => {
+    try {
+      const data = await fetchCustomerCalls(supabase);
+      if (data) setCalls(data);
+    } catch (err) {
+      console.warn("Exception fetching calls:", err);
+    }
   };
 
   const fetchStaff = async () => {
@@ -325,15 +342,28 @@ export default function App() {
           {/* User Profile & Actions */}
           <div className="flex items-center gap-2">
             
-            {/* User Badge */}
-            <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] ${
-                currentUser.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-800'
-              }`}>
-                {currentUser.name ? currentUser.name[0] : 'U'}
-              </div>
-              <div className="text-left">
-                <span className="font-bold text-slate-800 block text-[11px] leading-tight">
+            {/* User Badge / Profile Button */}
+            <button 
+              type="button"
+              onClick={() => setIsEditProfileOpen(true)}
+              title="ចុចដើម្បីកែប្រែ Profile / ប្តូររូបថត"
+              className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 px-2 py-1 sm:px-2.5 sm:py-1 rounded-xl text-xs transition-all cursor-pointer group"
+            >
+              {getStaffPhotoUrl(currentUser) ? (
+                <img 
+                  src={getStaffPhotoUrl(currentUser)} 
+                  alt={currentUser.name} 
+                  className="w-7 h-7 rounded-lg object-cover aspect-square border border-emerald-400 group-hover:scale-105 transition-transform shrink-0" 
+                />
+              ) : (
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                  currentUser.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {currentUser.name ? currentUser.name[0] : 'U'}
+                </div>
+              )}
+              <div className="text-left hidden sm:block">
+                <span className="font-bold text-slate-800 group-hover:text-emerald-900 block text-[11px] leading-tight">
                   {currentUser.name}
                 </span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
@@ -342,7 +372,7 @@ export default function App() {
                   {currentUser.role} {currentUser.branch ? `• ${currentUser.branch}` : ''}
                 </span>
               </div>
-            </div>
+            </button>
 
             <button 
               onClick={fetchAll} 
@@ -412,6 +442,16 @@ export default function App() {
               <span>របាយការណ៍ & ក្រាហ្វិក</span>
             </button>
           )}
+
+          <button 
+            onClick={() => setActiveTab('calls')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'calls' ? 'bg-white text-sky-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <PhoneCall size={14} className={activeTab === 'calls' ? 'text-sky-600' : 'text-slate-500'} />
+            <span>សួរសុខទុក្ខ ({calls.length})</span>
+          </button>
 
           {canViewMap && (
             <button 
@@ -483,6 +523,17 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'calls' && (
+              <CallList 
+                calls={calls}
+                onRefreshCalls={fetchCalls}
+                customers={customers}
+                currentUser={currentUser}
+                staffList={staffList}
+                supabase={supabase}
+              />
+            )}
+
             {activeTab === 'map' && (
               <MapView 
                 visits={visits} 
@@ -495,6 +546,10 @@ export default function App() {
                 customers={customers} 
                 onOpenNewCustomer={handleOpenNewVisit}
                 onSelectCustomerForVisit={handleSelectCustomerForVisit}
+                onOpenNewCall={(c) => {
+                  setCallPreselectedCustomer(c);
+                  setIsNewCallModalOpen(true);
+                }}
                 onCustomerCreated={handleCustomerCreated}
                 onCustomerUpdated={handleCustomerUpdated}
                 onCustomerDeleted={handleCustomerDeleted}
@@ -543,6 +598,16 @@ export default function App() {
             <span>របាយការណ៍</span>
           </button>
         )}
+
+        <button 
+          onClick={() => setActiveTab('calls')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+            activeTab === 'calls' ? 'text-sky-700' : 'text-slate-400'
+          }`}
+        >
+          <PhoneCall size={18} />
+          <span>សួរសុខទុក្ខ</span>
+        </button>
 
         {/* Center Primary Action: + ចុះចំការ */}
         {canCreateVisit && (
@@ -631,6 +696,34 @@ export default function App() {
         onDataRestored={() => {
           fetchAll();
         }}
+      />
+
+      {/* Edit My Profile Modal (Self-service) */}
+      <EditProfileModal 
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        currentUser={currentUser}
+        supabase={supabase}
+        onProfileUpdated={(updated) => {
+          setCurrentUser(updated);
+          fetchStaff();
+        }}
+      />
+
+      {/* New Customer Call Modal (Triggered from Customer List shortcut or elsewhere) */}
+      <NewCallModal 
+        isOpen={isNewCallModalOpen}
+        onClose={() => {
+          setIsNewCallModalOpen(false);
+          setCallPreselectedCustomer(null);
+        }}
+        onCallSaved={() => {
+          fetchCalls();
+        }}
+        customers={customers}
+        currentUser={currentUser}
+        preselectedCustomer={callPreselectedCustomer}
+        supabase={supabase}
       />
 
     </div>
