@@ -1,4 +1,43 @@
-// Utility functions for client-side image compression and 7-day automatic storage cleanup
+// Utility functions for client-side image compression, HEIC decoding, and 7-day automatic storage cleanup
+import heic2any from 'heic2any';
+
+/**
+ * Check if a file or URL is in HEIC/HEIF format
+ */
+export function isHeicFile(fileOrUrl) {
+  if (!fileOrUrl) return false;
+  if (typeof fileOrUrl === 'string') {
+    const clean = fileOrUrl.split('?')[0].toLowerCase();
+    return clean.endsWith('.heic') || clean.endsWith('.heif');
+  }
+  const name = (fileOrUrl.name || '').toLowerCase();
+  const type = (fileOrUrl.type || '').toLowerCase();
+  return name.endsWith('.heic') || name.endsWith('.heif') || type === 'image/heic' || type === 'image/heif';
+}
+
+/**
+ * Convert a HEIC/HEIF file or Blob to standard JPEG File
+ */
+export async function convertHeicToJpeg(file) {
+  if (!file || !isHeicFile(file)) return file;
+  try {
+    const converted = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.85
+    });
+    const blob = Array.isArray(converted) ? converted[0] : converted;
+    const originalName = file.name || `photo_${Date.now()}.jpg`;
+    const cleanName = originalName.replace(/\.(heic|heif)$/i, '') + '.jpg';
+    return new File([blob], cleanName, {
+      type: 'image/jpeg',
+      lastModified: Date.now()
+    });
+  } catch (err) {
+    console.warn('Failed to convert HEIC to JPEG:', err);
+    return file;
+  }
+}
 
 /**
  * Format bytes to readable human string (e.g. 150 KB, 2.4 MB)
@@ -26,14 +65,29 @@ export function formatFileSize(bytes) {
 export async function compressImage(file, { maxWidth = 1280, maxHeight = 1280, quality = 0.72 } = {}) {
   const originalSize = file?.size || 0;
 
-  // Safety check: if file is invalid or not an image, return as is
-  if (!file || (file.type && !file.type.startsWith('image/'))) {
+  if (!file) {
+    return {
+      file,
+      originalSize: 0,
+      compressedSize: 0,
+      savingsPercent: 0,
+      previewUrl: ''
+    };
+  }
+
+  // Automatically decode HEIC/HEIF to JPEG first
+  if (isHeicFile(file)) {
+    file = await convertHeicToJpeg(file);
+  }
+
+  // Safety check: if file is not an image, return as is
+  if (file.type && !file.type.startsWith('image/')) {
     return {
       file,
       originalSize,
       compressedSize: originalSize,
       savingsPercent: 0,
-      previewUrl: file ? URL.createObjectURL(file) : ''
+      previewUrl: URL.createObjectURL(file)
     };
   }
 
@@ -163,6 +217,91 @@ export async function compressMultipleImages(files, options = {}) {
     results.push(res);
   }
   return results;
+}
+
+/**
+ * Center-crop and compress an image file to a 1:1 square avatar (e.g. 480x480 JPEG)
+ * Automatically converts HEIC/HEIF files if uploaded.
+ */
+export async function compressSquareAvatar(file, { size = 480, quality = 0.85 } = {}) {
+  if (!file) return null;
+
+  let activeFile = file;
+  if (isHeicFile(activeFile)) {
+    activeFile = await convertHeicToJpeg(activeFile);
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      resolve({ file: activeFile, previewUrl: URL.createObjectURL(activeFile) });
+    };
+
+    reader.onload = (event) => {
+      const img = new Image();
+
+      img.onerror = () => {
+        resolve({ file: activeFile, previewUrl: URL.createObjectURL(activeFile) });
+      };
+
+      img.onload = () => {
+        const naturalWidth = img.naturalWidth || img.width;
+        const naturalHeight = img.naturalHeight || img.height;
+        const minDim = Math.min(naturalWidth, naturalHeight);
+
+        // Calculate center square crop bounds
+        const sx = Math.round((naturalWidth - minDim) / 2);
+        const sy = Math.round((naturalHeight - minDim) / 2);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ file: activeFile, previewUrl: URL.createObjectURL(activeFile) });
+          return;
+        }
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, size, size);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Draw centered square crop
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve({ file: activeFile, previewUrl: URL.createObjectURL(activeFile) });
+              return;
+            }
+
+            const cleanName = (activeFile.name || 'avatar.jpg').replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressedFile = new File([blob], cleanName, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+
+            resolve({
+              file: compressedFile,
+              originalSize: activeFile.size || 0,
+              compressedSize: compressedFile.size,
+              previewUrl: URL.createObjectURL(compressedFile)
+            });
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+
+      img.src = event.target.result;
+    };
+
+    reader.readAsDataURL(activeFile);
+  });
 }
 
 /**

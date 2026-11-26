@@ -469,6 +469,7 @@ export default function App() {
                 onDeleteVisit={handleDeleteVisit}
                 onOpenNewVisit={handleOpenNewVisit}
                 currentUser={currentUser}
+                staffList={staffList}
               />
             )}
 
@@ -616,6 +617,7 @@ export default function App() {
         visit={selectedVisitDetail}
         onDuplicateVisit={handleDuplicateVisit}
         currentUser={currentUser}
+        staffList={staffList}
         onClose={() => setSelectedVisitDetail(null)}
       />
 

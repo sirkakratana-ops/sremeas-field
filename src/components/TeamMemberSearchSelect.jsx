@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, UserCheck, User, X, Plus, Check, ChevronDown, Building, Users } from 'lucide-react';
+import { getStaffPhotoUrl } from '../staffUtils';
 
 export default function TeamMemberSearchSelect({
   staffMembers = [],
@@ -199,11 +200,19 @@ export default function TeamMemberSearchSelect({
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {isSelected ? <Check size={12} /> : <User size={12} />}
-                        </div>
+                        {getStaffPhotoUrl(staff) ? (
+                          <img 
+                            src={getStaffPhotoUrl(staff)} 
+                            alt={staff.name} 
+                            className="w-5 h-5 rounded-md object-cover aspect-square shrink-0 border border-slate-200" 
+                          />
+                        ) : (
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {isSelected ? <Check size={12} /> : <User size={12} />}
+                          </div>
+                        )}
                         <span className="truncate">{staff.name}</span>
                       </div>
 

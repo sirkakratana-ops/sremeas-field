@@ -1730,7 +1730,7 @@ export default function NewVisitModal({
                   <span>+ ថែមរូបភាពថ្មី (បន្ថយទំហំស្វ័យប្រវត្តិ)</span>
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept="image/*,.heic,.heif,image/heic,image/heif" 
                     multiple 
                     onChange={handlePhotoSelect} 
                     className="hidden" 

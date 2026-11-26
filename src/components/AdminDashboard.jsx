@@ -4,10 +4,10 @@ import {
   Users, UserPlus, Shield, Key, Phone, Mail, Calendar, 
   MapPin, CheckCircle2, XCircle, Edit, Trash2, Search, 
   Lock, Eye, EyeOff, Copy, Check, AlertTriangle, ShieldCheck,
-  Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database, Download
+  Building, UserCheck, RefreshCw, X, Camera, Clock, Sparkles, HardDrive, Database, Download, Loader2
 } from 'lucide-react';
-import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS, formatPhoneNumber, handlePhoneInputChange, cleanBranchName } from '../staffUtils';
-import { cleanupExpiredVisitPhotos, getPhotoRetentionStats } from '../imageUtils';
+import { calculateAge, formatDateDMY, toInputDateFormat, SQL_SCHEMA_SCRIPT, hasPermission, DEFAULT_USER_PERMISSIONS, ADMIN_FULL_PERMISSIONS, formatPhoneNumber, handlePhoneInputChange, cleanBranchName, getStaffPhotoUrl } from '../staffUtils';
+import { cleanupExpiredVisitPhotos, getPhotoRetentionStats, compressSquareAvatar } from '../imageUtils';
 import BackupRestoreModal from './BackupRestoreModal';
 
 // Default initial admin in case Supabase table is not yet migrated
@@ -49,6 +49,10 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
   // Form Fields
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [name, setName] = useState('');
   const [gender, setGender] = useState('ប្រុស');
   const [phone, setPhone] = useState('');
@@ -185,8 +189,36 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     setRevealedPasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleAvatarSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setIsProcessingPhoto(true);
+    try {
+      const res = await compressSquareAvatar(file, { size: 480, quality: 0.85 });
+      if (res?.file) {
+        setPhotoFile(res.file);
+        setPhotoPreview(res.previewUrl);
+      }
+    } catch (err) {
+      console.error("Avatar process error:", err);
+      alert("មិនអាចដំណើរការរូបថតបានទេ: " + err.message);
+    } finally {
+      setIsProcessingPhoto(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setPhotoUrl('');
+    setPhotoFile(null);
+    setPhotoPreview('');
+  };
+
   const handleOpenAdd = () => {
     setEditingStaff(null);
+    setPhotoUrl('');
+    setPhotoFile(null);
+    setPhotoPreview('');
     setName('');
     setGender('ប្រុស');
     setPhone('');
@@ -203,6 +235,10 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
 
   const handleOpenEdit = (s) => {
     setEditingStaff(s);
+    const existingPhoto = getStaffPhotoUrl(s) || '';
+    setPhotoUrl(existingPhoto);
+    setPhotoFile(null);
+    setPhotoPreview(existingPhoto);
     setName(s.name || '');
     setGender(s.gender || 'ប្រុស');
     setPhone(formatPhoneNumber(s.phone || ''));
@@ -251,54 +287,90 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
     if (!password.trim()) return alert("សូមបញ្ចូល Password!");
 
     setIsSaving(true);
-    const permissionsObj = role === 'Admin' ? { ...ADMIN_FULL_PERMISSIONS } : {
-      // 1. បញ្ជីចុះចំការ
-      can_view_visits: permVisitsView,
-      can_create_visit: permVisitsCreate,
-      can_edit_visit: permVisitsEdit,
-      can_delete_visit: permVisitsDelete,
-
-      // 2. បញ្ជីអតិថិជន
-      can_view_customers: permCustomersView,
-      can_create_customer: permCustomersCreate,
-      can_edit_customer: permCustomersEdit,
-      can_delete_customer: permCustomersDelete,
-
-      // 3. បញ្ជីបុគ្គលិក
-      can_view_staff: permStaffView,
-      can_create_staff: permStaffCreate,
-      can_edit_staff: permStaffEdit,
-      can_delete_staff: permStaffDelete,
-      can_manage_staff: permStaffView || permStaffCreate || permStaffEdit, // for backward compatibility
-
-      // 4. របាយការណ៍ & ផែនទី
-      can_view_reports: permReportsView,
-      can_export_reports: permReportsExport,
-      can_view_map: permMapView,
-    };
-
-    const payload = {
-      name: name.trim(),
-      gender: gender || 'ប្រុស',
-      phone: formatPhoneNumber(phone) || null,
-      dob: dob || null,
-      email: email.trim() || null,
-      role: role || 'បុគ្គលិកទីផ្សារ',
-      branch: branch || 'ទូទៅ',
-      username: username.trim().toLowerCase(),
-      password: password.trim(),
-      status: status || 'សកម្ម',
-      permissions: permissionsObj
-    };
 
     try {
-      if (!isTableMissing) {
-        if (editingStaff) {
-          const { error } = await supabase.from('staff').update(payload).eq('id', editingStaff.id);
-          if (error) throw error;
+      let finalPhotoUrl = photoUrl || null;
+
+      // Upload newly selected avatar if any
+      if (photoFile) {
+        const fileExt = photoFile.name?.split('.').pop() || 'jpg';
+        const fileName = `avatar_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        const filePath = `staff/${fileName}`;
+        const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, photoFile);
+        if (uploadErr) {
+          console.warn("Could not upload avatar:", uploadErr);
         } else {
-          const { error } = await supabase.from('staff').insert([payload]);
-          if (error) throw error;
+          const { data: pubData } = supabase.storage.from('visit-photos').getPublicUrl(filePath);
+          if (pubData?.publicUrl) finalPhotoUrl = pubData.publicUrl;
+        }
+      }
+
+      const permissionsObj = role === 'Admin' ? { ...ADMIN_FULL_PERMISSIONS, photo_url: finalPhotoUrl } : {
+        // 1. បញ្ជីចុះចំការ
+        can_view_visits: permVisitsView,
+        can_create_visit: permVisitsCreate,
+        can_edit_visit: permVisitsEdit,
+        can_delete_visit: permVisitsDelete,
+
+        // 2. បញ្ជីអតិថិជន
+        can_view_customers: permCustomersView,
+        can_create_customer: permCustomersCreate,
+        can_edit_customer: permCustomersEdit,
+        can_delete_customer: permCustomersDelete,
+
+        // 3. បញ្ជីបុគ្គលិក
+        can_view_staff: permStaffView,
+        can_create_staff: permStaffCreate,
+        can_edit_staff: permStaffEdit,
+        can_delete_staff: permStaffDelete,
+        can_manage_staff: permStaffView || permStaffCreate || permStaffEdit, // for backward compatibility
+
+        // 4. របាយការណ៍ & ផែនទី
+        can_view_reports: permReportsView,
+        can_export_reports: permReportsExport,
+        can_view_map: permMapView,
+
+        // Profile photo URL
+        photo_url: finalPhotoUrl
+      };
+
+      const payload = {
+        name: name.trim(),
+        gender: gender || 'ប្រុស',
+        phone: formatPhoneNumber(phone) || null,
+        dob: dob || null,
+        email: email.trim() || null,
+        role: role || 'បុគ្គលិកទីផ្សារ',
+        branch: branch || 'ទូទៅ',
+        username: username.trim().toLowerCase(),
+        password: password.trim(),
+        status: status || 'សកម្ម',
+        photo_url: finalPhotoUrl,
+        permissions: permissionsObj
+      };
+
+      if (!isTableMissing) {
+        let saveErr = null;
+        if (editingStaff) {
+          const res = await supabase.from('staff').update(payload).eq('id', editingStaff.id);
+          saveErr = res.error;
+        } else {
+          const res = await supabase.from('staff').insert([payload]);
+          saveErr = res.error;
+        }
+
+        // Schema fallback if column staff.photo_url does not exist in schema cache
+        if (saveErr && (saveErr.message?.includes('column') || saveErr.code === '42703' || saveErr.code === 'PGRST204')) {
+          const { photo_url: _pu, ...payloadFallback } = payload;
+          if (editingStaff) {
+            const res2 = await supabase.from('staff').update(payloadFallback).eq('id', editingStaff.id);
+            if (res2.error) throw res2.error;
+          } else {
+            const res2 = await supabase.from('staff').insert([payloadFallback]);
+            if (res2.error) throw res2.error;
+          }
+        } else if (saveErr) {
+          throw saveErr;
         }
         await fetchStaff();
       } else {
@@ -719,12 +791,20 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                       
                       {/* Name & Gender */}
                       <td className="py-2.5 px-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                            staffMember.gender === 'ស្រី' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {staffMember.name ? staffMember.name[0] : 'U'}
-                          </div>
+                        <div className="flex items-center gap-2.5">
+                          {getStaffPhotoUrl(staffMember) ? (
+                            <img 
+                              src={getStaffPhotoUrl(staffMember)} 
+                              alt={staffMember.name} 
+                              className="w-8 h-8 rounded-xl object-cover aspect-square border border-slate-200 shrink-0 shadow-2xs" 
+                            />
+                          ) : (
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 aspect-square ${
+                              staffMember.gender === 'ស្រី' ? 'bg-pink-100 text-pink-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {staffMember.name ? staffMember.name[0] : 'U'}
+                            </div>
+                          )}
                           <div>
                             <strong className="text-slate-900 block text-xs">
                               {staffMember.name}
@@ -952,6 +1032,73 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
             {/* Modal Form */}
             <form onSubmit={handleSaveStaff} className="p-5 max-h-[80vh] overflow-y-auto space-y-3.5">
               
+              {/* Profile Photo (Square Aspect Ratio) */}
+              <div className="flex flex-col sm:flex-row items-center gap-3.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="relative w-24 h-24 aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-slate-300 bg-white flex items-center justify-center shrink-0 shadow-2xs group">
+                  {photoPreview ? (
+                    <>
+                      <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover aspect-square" />
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label className="p-1.5 bg-white text-slate-700 hover:text-emerald-700 rounded-lg cursor-pointer shadow-sm" title="ប្តូររូបថត">
+                          <Camera size={14} />
+                          <input type="file" accept="image/*,.heic,.heif" onChange={handleAvatarSelect} className="hidden" />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          className="p-1.5 bg-white text-rose-600 hover:text-rose-800 rounded-lg shadow-sm"
+                          title="លុបរូបថត"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <label className="w-full h-full flex flex-col items-center justify-center text-slate-400 hover:text-emerald-600 cursor-pointer p-2 text-center transition-colors">
+                      {isProcessingPhoto ? (
+                        <Loader2 size={24} className="animate-spin text-emerald-600" />
+                      ) : (
+                        <>
+                          <Camera size={24} className="mb-1 text-slate-400" />
+                          <span className="text-[10px] font-bold text-slate-600">ដាក់រូប Profile</span>
+                          <span className="text-[9px] text-slate-400 font-mono">(រាងការ៉េ)</span>
+                        </>
+                      )}
+                      <input type="file" accept="image/*,.heic,.heif" onChange={handleAvatarSelect} className="hidden" />
+                    </label>
+                  )}
+                </div>
+
+                <div className="text-center sm:text-left space-y-1">
+                  <div className="flex items-center justify-center sm:justify-start gap-1.5">
+                    <span className="font-bold text-slate-800 text-xs">រូបថត Profile បុគ្គលិក (រាងការ៉េ)</span>
+                    {photoPreview && (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-bold">បានជ្រើស</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    រូបថត Profile នេះនឹងបង្ហាញក្នុងបញ្ជីបុគ្គលិក និងភ្ជាប់ទៅក្នុងរបាយការណ៍ Telegram ពេលចុះចំការ។ គាំទ្រ JPG, PNG និង HEIC។
+                  </p>
+                  {photoPreview && (
+                    <div className="flex items-center justify-center sm:justify-start gap-3 pt-1">
+                      <label className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer">
+                        <Camera size={12} />
+                        <span>ប្តូររូបថត</span>
+                        <input type="file" accept="image/*,.heic,.heif" onChange={handleAvatarSelect} className="hidden" />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 size={12} />
+                        <span>លុបរូប</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Name & Gender */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">

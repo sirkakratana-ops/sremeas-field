@@ -33,7 +33,7 @@ function getVisitDateKey(visitDateVal) {
   return '';
 }
 
-export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplicateVisit, onDeleteVisit, onOpenNewVisit, currentUser }) {
+export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplicateVisit, onDeleteVisit, onOpenNewVisit, currentUser, staffList = [] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCrop, setFilterCrop] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -849,6 +849,7 @@ export default function VisitList({ visits, onSelectVisit, onEditVisit, onDuplic
         visit={sharingVisit}
         isOpen={Boolean(sharingVisit)}
         onClose={() => setSharingVisit(null)}
+        staffList={staffList}
       />
 
     </div>

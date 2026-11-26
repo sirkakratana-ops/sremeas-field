@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Send, Copy, Check, Settings, Bot, ExternalLink, 
   ChevronDown, ChevronUp, AlertCircle, CheckCircle2, 
-  Loader2, Share2, FileText, Image as ImageIcon, Info, HelpCircle
+  Loader2, Share2, FileText, Image as ImageIcon, Info, HelpCircle,
+  User
 } from 'lucide-react';
 import { 
   formatVisitTelegramText, 
@@ -10,10 +11,11 @@ import {
   copyVisitReportToClipboard,
   getTelegramSettings,
   saveTelegramSettings,
-  sendVisitViaTelegramBot 
+  sendVisitViaTelegramBot,
+  resolveReportPhotosForTelegram
 } from '../telegramUtils';
 
-export default function ShareVisitModal({ visit, isOpen, onClose }) {
+export default function ShareVisitModal({ visit, isOpen, onClose, staffList = [] }) {
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [botSettings, setBotSettings] = useState(() => getTelegramSettings());
@@ -21,21 +23,41 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
   const [botStatusMessage, setBotStatusMessage] = useState(null); // { type: 'success' | 'error', text: '' }
   const [isTestingBot, setIsTestingBot] = useState(false);
   const [settingsSavedNotice, setSettingsSavedNotice] = useState(false);
+  const [reportPhotos, setReportPhotos] = useState({
+    fieldPhotos: [],
+    staffPhotos: [],
+    allPhotos: []
+  });
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && visit) {
       setBotSettings(getTelegramSettings());
       setCopied(false);
       setBotStatusMessage(null);
       setSettingsSavedNotice(false);
+
+      let isMounted = true;
+      setIsLoadingPhotos(true);
+      resolveReportPhotosForTelegram(visit, staffList).then(res => {
+        if (isMounted) {
+          setReportPhotos(res);
+          setIsLoadingPhotos(false);
+        }
+      }).catch(err => {
+        console.warn('Failed to resolve report photos:', err);
+        if (isMounted) setIsLoadingPhotos(false);
+      });
+
+      return () => { isMounted = false; };
     }
-  }, [isOpen, visit]);
+  }, [isOpen, visit, staffList]);
 
   if (!isOpen || !visit) return null;
 
   const reportText = formatVisitTelegramText(visit);
   const hasBotConfigured = Boolean(botSettings.botToken && botSettings.chatId);
-  const photos = Array.isArray(visit.photos) ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) : [];
+  const allPhotos = reportPhotos.allPhotos;
 
   // 1. Direct Telegram Share (Fixed URL to prevent Bad Request)
   const handleOpenTelegramShare = () => {
@@ -71,10 +93,11 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
     try {
       setIsSendingBot(true);
       setBotStatusMessage(null);
-      await sendVisitViaTelegramBot(visit, botSettings);
+      await sendVisitViaTelegramBot(visit, botSettings, staffList);
+      const totalCount = allPhotos.length;
       setBotStatusMessage({
         type: 'success',
-        text: `បានផ្ញើរបាយការណ៍ ${photos.length > 0 ? `រួមទាំងរូបភាព (${photos.length} សន្លឹក) ` : ''}ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
+        text: `បានផ្ញើរបាយការណ៍ ${totalCount > 0 ? `រួមទាំងរូបភាព (${totalCount} សន្លឹក រួមមានរូបចុះចំការ និងរូប Profile បុគ្គលិក) ` : ''}ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
       });
     } catch (err) {
       setBotStatusMessage({
@@ -162,21 +185,39 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
           )}
 
           {/* Photos Preview Banner */}
-          {photos.length > 0 && (
+          {(allPhotos.length > 0 || isLoadingPhotos) && (
             <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-emerald-800 flex items-center gap-1.5 text-xs">
                   <ImageIcon size={14} className="text-emerald-600" />
-                  <span>រូបភាពជាក់ស្តែង ({photos.length} សន្លឹក)</span>
+                  <span>រូបភាពត្រូវភ្ជាប់ទៅ Telegram ({allPhotos.length} សន្លឹក)</span>
                 </span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                  បង្ហាញជារូបភាពក្នុង Telegram ផ្ទាល់
-                </span>
+                {isLoadingPhotos ? (
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <Loader2 size={11} className="animate-spin text-emerald-600" /> កំពុងរៀបចំរូបភាព...
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    Profile បុគ្គលិកនៅលំដាប់ចុងក្រោយ
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {photos.map((p, idx) => (
-                  <a key={idx} href={p} target="_blank" rel="noreferrer" className="w-16 h-12 rounded-lg border border-emerald-200 overflow-hidden shrink-0 group">
-                    <img src={p} alt={`Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                {/* 1. Field photos */}
+                {reportPhotos.fieldPhotos.map((p, idx) => (
+                  <a key={`field-${idx}`} href={p} target="_blank" rel="noreferrer" className="w-16 h-12 rounded-lg border border-emerald-200 overflow-hidden shrink-0 group relative" title={`រូបចុះចំការ #${idx+1}`}>
+                    <img src={p} alt={`Field Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white text-center py-0.2">ចំការ {idx+1}</span>
+                  </a>
+                ))}
+
+                {/* 2. Staff Profile photos (Strictly at the end!) */}
+                {reportPhotos.staffPhotos.map((p, idx) => (
+                  <a key={`staff-${idx}`} href={p} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-lg border-2 border-emerald-500 overflow-hidden shrink-0 group relative aspect-square shadow-2xs" title={`រូប Profile បុគ្គលិក #${idx+1}`}>
+                    <img src={p} alt={`Staff Profile ${idx+1}`} className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform" />
+                    <span className="absolute bottom-0 inset-x-0 bg-emerald-700/80 text-[8px] font-bold text-white text-center py-0.2 flex items-center justify-center gap-0.5">
+                      <User size={8} /> Profile
+                    </span>
                   </a>
                 ))}
               </div>
@@ -205,7 +246,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
               <div className="space-y-2">
                 <div className="text-[11px] text-slate-600 flex items-center justify-between">
                   <span>Group គោលដៅ៖ <strong className="text-slate-900 font-mono">{botSettings.groupName || botSettings.chatId}</strong></span>
-                  {photos.length > 0 && <span className="text-emerald-700 font-bold">({photos.length} រូបភាព)</span>}
+                  {allPhotos.length > 0 && <span className="text-emerald-700 font-bold">({allPhotos.length} រូបភាព)</span>}
                 </div>
                 <button
                   type="button"
@@ -217,7 +258,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose }) {
                   <span>
                     {isSendingBot 
                       ? 'កំពុងផ្ញើចូល Telegram Group...' 
-                      : `ផ្ញើចូល Telegram Group ភ្លាមៗ ${photos.length > 0 ? `(រួមទាំងរូបភាព ${photos.length} សន្លឹក)` : ''}`}
+                      : `ផ្ញើចូល Telegram Group ភ្លាមៗ ${allPhotos.length > 0 ? `(រួមទាំងរូបភាព ${allPhotos.length} សន្លឹក)` : ''}`}
                   </span>
                 </button>
               </div>

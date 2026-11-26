@@ -5,16 +5,19 @@ import {
   Building, Users, UserCheck, Send, Copy, Check, Clock,
   Activity, Target
 } from 'lucide-react';
-import { parseCrops, hasPermission, formatPhoneNumber, extractVisitPurpose, extractFarmerHistory, cleanNotesText } from '../staffUtils';
+import { parseCrops, hasPermission, formatPhoneNumber, extractVisitPurpose, extractFarmerHistory, cleanNotesText, getStaffPhotoUrl } from '../staffUtils';
 import { copyVisitReportToClipboard } from '../telegramUtils';
 import { isVisitPhotoExpired } from '../imageUtils';
 import ShareVisitModal from './ShareVisitModal';
 
-export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, currentUser }) {
+export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, currentUser, staffList = [] }) {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (!visit) return null;
+
+  const reporterStaff = staffList.find(s => (s.name || '').trim().toLowerCase() === (visit.staff_name || '').trim().toLowerCase());
+  const reporterPhotoUrl = getStaffPhotoUrl(reporterStaff);
 
   const crops = parseCrops(visit.crops, visit.crop_type, visit.farm_size_ha);
   const totalHa = crops.reduce((s, c) => s + (parseFloat(c.farm_size_ha) || 0), 0) || visit.farm_size_ha || 0;
@@ -61,8 +64,17 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
           <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <div>
               <span className="text-slate-400 text-[10px] font-bold block uppercase">អ្នករាយការណ៍</span>
-              <span className="font-bold text-slate-800 flex items-center gap-1 text-sm mt-0.5">
-                <User size={14} className="text-emerald-600" /> {visit.staff_name}
+              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-sm mt-0.5">
+                {reporterPhotoUrl ? (
+                  <img 
+                    src={reporterPhotoUrl} 
+                    alt={visit.staff_name} 
+                    className="w-5 h-5 rounded-md object-cover aspect-square border border-slate-200 shrink-0" 
+                  />
+                ) : (
+                  <User size={14} className="text-emerald-600" />
+                )}
+                <span>{visit.staff_name}</span>
               </span>
               {visit.branch && (
                 <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-1 font-medium">
@@ -104,15 +116,27 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
                 <span>ក្រុមការងារចុះជាមួយ ({teamMembers.length} នាក់)៖</span>
               </span>
               <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {teamMembers.map((m, idx) => (
-                  <span 
-                    key={idx} 
-                    className="bg-white border border-slate-200 text-slate-800 px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
-                  >
-                    <UserCheck size={11} className="text-emerald-600" />
-                    <span>{m}</span>
-                  </span>
-                ))}
+                {teamMembers.map((m, idx) => {
+                  const mStaff = staffList.find(s => (s.name || '').trim().toLowerCase() === (m || '').trim().toLowerCase());
+                  const mPhoto = getStaffPhotoUrl(mStaff);
+                  return (
+                    <span 
+                      key={idx} 
+                      className="bg-white border border-slate-200 text-slate-800 px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+                    >
+                      {mPhoto ? (
+                        <img 
+                          src={mPhoto} 
+                          alt={m} 
+                          className="w-4 h-4 rounded-xs object-cover aspect-square border border-slate-200 shrink-0" 
+                        />
+                      ) : (
+                        <UserCheck size={11} className="text-emerald-600" />
+                      )}
+                      <span>{m}</span>
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -351,6 +375,7 @@ export default function VisitDetailModal({ visit, onClose, onDuplicateVisit, cur
         visit={visit}
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
+        staffList={staffList}
       />
     </div>
   );

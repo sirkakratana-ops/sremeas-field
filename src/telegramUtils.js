@@ -4,8 +4,12 @@ import {
   formatProvince, 
   formatPhoneNumber, 
   extractVisitPurpose, 
-  extractFarmerHistory 
+  extractFarmerHistory,
+  getVisitStaffPhotos,
+  getStaffList
 } from './staffUtils.js';
+import { isHeicFile, convertHeicToJpeg } from './imageUtils.js';
+import { supabase } from './supabase.js';
 
 /**
  * Format date in DD/MM/YYYY format
@@ -203,10 +207,100 @@ export function saveTelegramSettings(settings) {
 }
 
 /**
+ * If an image URL is in HEIC/HEIF format, convert it to JPEG and upload to visit-photos/converted
+ * so that Telegram servers and all browsers can view it cleanly.
+ */
+export async function convertHeicUrlToJpegUrl(url) {
+  if (!url || typeof url !== 'string' || !isHeicFile(url)) return url;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    const jpegFile = await convertHeicToJpeg(new File([blob], 'photo.jpg', { type: blob.type || 'image/heic' }));
+    const fileName = `heic_conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+    const filePath = `converted/${fileName}`;
+    const { error } = await supabase.storage.from('visit-photos').upload(filePath, jpegFile, {
+      contentType: 'image/jpeg'
+    });
+    if (!error) {
+      const { data } = supabase.storage.from('visit-photos').getPublicUrl(filePath);
+      if (data?.publicUrl) return data.publicUrl;
+    }
+  } catch (err) {
+    console.warn('convertHeicUrlToJpegUrl error:', err);
+  }
+  return url;
+}
+
+/**
+ * Resolve all photos for Telegram report:
+ * 1. Field visit photos (photos of the farm / crop)
+ * 2. Profile photos of reporter and all participants/team members
+ * 
+ * Strict order requirement:
+ * Place staff profile photos strictly at the VERY END ([...fieldPhotos, ...staffPhotos]).
+ * Automatically converts any HEIC photos to standard JPEG.
+ */
+export async function resolveReportPhotosForTelegram(visit, customStaffList = null) {
+  if (!visit) {
+    return { fieldPhotos: [], staffPhotos: [], allPhotos: [] };
+  }
+
+  // 1. Raw field photos
+  const rawFieldPhotos = Array.isArray(visit.photos) 
+    ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) 
+    : [];
+
+  // 2. Fetch staffList if not passed
+  let staffList = customStaffList;
+  if (!Array.isArray(staffList) || staffList.length === 0) {
+    try {
+      staffList = await getStaffList(supabase);
+    } catch {
+      staffList = [];
+    }
+  }
+
+  // 3. Extract reporter and participant profile photos
+  const rawStaffPhotos = getVisitStaffPhotos(visit, staffList);
+
+  // 4. Ensure HEIC conversion if any photo ends in .heic/.heif
+  const fieldPhotos = [];
+  for (const url of rawFieldPhotos) {
+    if (isHeicFile(url)) {
+      const converted = await convertHeicUrlToJpegUrl(url);
+      fieldPhotos.push(converted);
+    } else {
+      fieldPhotos.push(url);
+    }
+  }
+
+  const staffPhotos = [];
+  for (const url of rawStaffPhotos) {
+    if (isHeicFile(url)) {
+      const converted = await convertHeicUrlToJpegUrl(url);
+      staffPhotos.push(converted);
+    } else {
+      staffPhotos.push(url);
+    }
+  }
+
+  // Ordered strictly: field photos FIRST, staff profile photos at the VERY END!
+  const allPhotos = [...fieldPhotos, ...staffPhotos];
+
+  return {
+    fieldPhotos,
+    staffPhotos,
+    allPhotos
+  };
+}
+
+/**
  * Send report directly to a Telegram Group via Bot API,
  * natively displaying actual photos (single photo or photo album) inside the group!
+ * Automatically includes staff profile photos at the very end and handles HEIC images.
  */
-export async function sendVisitViaTelegramBot(visit, customSettings = null) {
+export async function sendVisitViaTelegramBot(visit, customSettings = null, customStaffList = null) {
   const settings = customSettings || getTelegramSettings();
   const botToken = settings?.botToken?.trim();
   const chatId = settings?.chatId?.trim();
@@ -216,14 +310,14 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
   }
 
   const fullText = formatVisitTelegramText(visit);
-  const photos = Array.isArray(visit.photos) 
-    ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) 
-    : [];
+  
+  // Resolve photos: field photos first, staff profile photos at the end
+  const { allPhotos } = await resolveReportPhotosForTelegram(visit, customStaffList);
 
   // ==========================================================
   // CASE 1: Has exactly 1 Photo -> Send via `sendPhoto`
   // ==========================================================
-  if (photos.length === 1) {
+  if (allPhotos.length === 1) {
     try {
       // Telegram photo caption maximum length is 1024 characters
       const caption = fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...';
@@ -232,7 +326,7 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          photo: photos[0],
+          photo: allPhotos[0],
           caption: caption
         })
       });
@@ -260,27 +354,57 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
   }
 
   // ==========================================================
-  // CASE 2: Has Multiple Photos (2-10) -> Send as Photo Album via `sendMediaGroup`
+  // CASE 2: Has Multiple Photos (>= 2) -> Send in albums of up to 10 via `sendMediaGroup`
+  // Slices into batches so all photos (including staff profiles at the end) are sent!
   // ==========================================================
-  if (photos.length > 1) {
+  if (allPhotos.length > 1) {
     try {
-      const mediaList = photos.slice(0, 10).map((p, idx) => ({
-        type: 'photo',
-        media: p,
-        caption: idx === 0 ? (fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...') : undefined
-      }));
+      const batches = [];
+      for (let i = 0; i < allPhotos.length; i += 10) {
+        batches.push(allPhotos.slice(i, i + 10));
+      }
 
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMediaGroup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          media: mediaList
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើក្រុមរូបភាព');
+      let firstBatchResult = null;
+      for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+        const batch = batches[bIdx];
+        if (batch.length === 1) {
+          // Send single photo if batch only has 1
+          const caption = bIdx === 0 ? (fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...') : undefined;
+          const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              photo: batch[0],
+              caption: caption
+            })
+          });
+          const data = await res.json();
+          if (bIdx === 0) firstBatchResult = data;
+        } else {
+          // Album with 2-10 photos
+          const mediaList = batch.map((p, idx) => ({
+            type: 'photo',
+            media: p,
+            caption: (bIdx === 0 && idx === 0) 
+              ? (fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...') 
+              : undefined
+          }));
+
+          const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMediaGroup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              media: mediaList
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើក្រុមរូបភាព');
+          }
+          if (bIdx === 0) firstBatchResult = data;
+        }
       }
 
       // If fullText was truncated, send the full text message right after
@@ -294,7 +418,7 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
           })
         });
       }
-      return data;
+      return firstBatchResult || { ok: true };
     } catch (mediaErr) {
       console.warn('sendMediaGroup failed, attempting fallback to sendMessage:', mediaErr);
       // Fallback continues below

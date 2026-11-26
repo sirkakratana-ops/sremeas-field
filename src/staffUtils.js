@@ -154,9 +154,12 @@ create table if not exists staff (
   username text unique not null,
   password text not null,
   status text default 'សកម្ម',
+  photo_url text,
   permissions jsonb default '{"can_manage_staff": false, "can_edit_customer": true, "can_delete_customer": false, "can_delete_visit": false, "can_export_reports": true}'::jsonb,
   created_at timestamp with time zone default now()
 );
+
+alter table if exists staff add column if not exists photo_url text;
 
 -- បើកសិទ្ធិ RLS សម្រាប់តារាង staff
 alter table staff enable row level security;
@@ -713,6 +716,63 @@ export function cleanNotesText(rawNotes) {
     .replace(/\[ប្រវត្តិប្រើប្រាស់\]:\s*[^\n\r]*(\r?\n)?/gi, '')
     .trim();
 }
+
+/**
+ * Get staff profile photo URL with fallback support for permissions.photo_url or avatar_url
+ */
+export function getStaffPhotoUrl(staff) {
+  if (!staff) return null;
+  const url = staff.photo_url || staff.permissions?.photo_url || staff.avatar_url || null;
+  return (typeof url === 'string' && url.trim()) ? url.trim() : null;
+}
+
+/**
+ * Extract reporter and all participants profile photos for a visit.
+ * Returns an array of photo URLs: [reporterPhoto, ...participantsPhotos] (unique and filtered).
+ */
+export function getVisitStaffPhotos(visit, staffList = []) {
+  if (!visit || !Array.isArray(staffList) || staffList.length === 0) return [];
+
+  const photos = [];
+  const addedUrls = new Set();
+
+  const addStaffPhoto = (name) => {
+    if (!name) return;
+    const clean = String(name).trim().toLowerCase();
+    const found = staffList.find(s => (s.name || '').trim().toLowerCase() === clean);
+    if (found) {
+      const url = getStaffPhotoUrl(found);
+      if (url && typeof url === 'string' && url.startsWith('http') && !addedUrls.has(url)) {
+        photos.push(url);
+        addedUrls.add(url);
+      }
+    }
+  };
+
+  // 1. Reporter photo
+  if (visit.staff_name) {
+    addStaffPhoto(visit.staff_name);
+  }
+
+  // 2. Accompanied participants/team members photos
+  let team = [];
+  if (Array.isArray(visit.team_members)) {
+    team = visit.team_members;
+  } else if (typeof visit.team_members === 'string' && visit.team_members.trim()) {
+    try {
+      const parsed = JSON.parse(visit.team_members);
+      if (Array.isArray(parsed)) team = parsed;
+      else team = visit.team_members.split(',').map(s => s.trim());
+    } catch {
+      team = visit.team_members.split(',').map(s => s.trim());
+    }
+  }
+
+  team.forEach(m => addStaffPhoto(m));
+
+  return photos;
+}
+
 
 
 
