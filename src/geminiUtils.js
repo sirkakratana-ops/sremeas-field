@@ -2,28 +2,28 @@
 import { getTelegramSettings } from './telegramUtils.js';
 
 export const GEMINI_MODELS = [
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (ជំនាន់ចុងក្រោយ - លឿន & ឆ្លាតវៃ)', isDefault: true },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (លឿនរហ័ស & ស្ថិរភាពខ្ពស់)' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (ស្តង់ដារល្បឿន)' },
-  { id: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro (ការវិភាគស៊ីជម្រៅ)' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (ការវិភាគកម្រិតខ្ពស់)' }
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (ណែនាំខ្ពស់បំផុត - ស្ថិរភាព & ឆ្លាតវៃ)', isDefault: true },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (ល្បឿនលឿន & ឆ្លាតវៃ)' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (ស្រាល & លឿនបំផុត)' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (ស្រាល & រហ័ស)' },
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (ជំនាន់ 3.8)' }
 ];
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
 
 // Fallback order when a model has high demand or is temporarily overloaded
 export const FALLBACK_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-3.8-pro',
-  'gemini-1.5-pro'
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash'
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Check whether an error is due to high demand, server overload, or temporary rate spike
+ * Check whether an error is due to high demand, server overload, rate limit or temporary quota
  */
 export function isHighDemandOrTemporaryError(errMsg, status) {
   if (status === 503 || status === 429) return true;
@@ -33,11 +33,18 @@ export function isHighDemandOrTemporaryError(errMsg, status) {
     s.includes('spikes in demand') ||
     s.includes('overloaded') ||
     s.includes('resource exhausted') ||
+    s.includes('quota exceeded') ||
+    s.includes('exceeded your current quota') ||
+    s.includes('rate-limit') ||
+    s.includes('rate_limits') ||
+    s.includes('no longer available') ||
+    s.includes('is not found') ||
     s.includes('try again later') ||
     s.includes('temporarily unavailable') ||
     s.includes('capacity') ||
     s.includes('503') ||
-    s.includes('429')
+    s.includes('429') ||
+    s.includes('404')
   );
 }
 
@@ -78,8 +85,8 @@ export function saveGeminiApiKey(key) {
 export function getSelectedGeminiModel() {
   try {
     const saved = localStorage.getItem('sremeas_gemini_model');
-    // If the saved model is obsolete 'gemini-2.5-flash', automatically migrate to 'gemini-3.8-flash'
-    if (saved === 'gemini-2.5-flash') {
+    // If the saved model is obsolete or free-quota exceeded (e.g. 2.5 or 3.8), automatically migrate to 'gemini-3.5-flash'
+    if (!saved || saved.startsWith('gemini-1.') || saved.startsWith('gemini-2.') || saved === 'gemini-3.8-flash') {
       try { localStorage.setItem('sremeas_gemini_model', DEFAULT_GEMINI_MODEL); } catch {}
       return DEFAULT_GEMINI_MODEL;
     }
