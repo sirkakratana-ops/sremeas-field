@@ -518,6 +518,7 @@ export default function App() {
                 visits={visits}
                 customers={customers}
                 staffList={staffList}
+                calls={calls}
                 currentUser={currentUser}
                 onSelectVisit={(v) => setSelectedVisitDetail(v)}
               />

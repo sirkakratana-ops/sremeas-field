@@ -3,8 +3,9 @@ import {
   BarChart3, PieChart, TrendingUp, Printer, Download, FileSpreadsheet, 
   Calendar, Filter, Users, ClipboardList, Layers, Activity, AlertTriangle, 
   CheckCircle2, UserCheck, Eye, Search, X, RotateCcw, Building, Sprout,
-  Send, ExternalLink, ChevronDown, Award, Target
+  Send, ExternalLink, ChevronDown, Award, Target, Sparkles
 } from 'lucide-react';
+import GeminiAnalysisModal from './GeminiAnalysisModal';
 import { 
   parseCrops, 
   formatProvince, 
@@ -22,6 +23,7 @@ export default function ReportsView({
   visits = [], 
   customers = [], 
   staffList = [], 
+  calls = [],
   currentUser = null, 
   onSelectVisit 
 }) {
@@ -44,6 +46,7 @@ export default function ReportsView({
 
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const canExport = hasPermission(currentUser, 'can_export_reports', true);
 
@@ -683,8 +686,19 @@ ${topStaffSummary || '—'}
           </p>
         </div>
 
-        {/* Action Buttons: Print, Excel, Telegram */}
+        {/* Action Buttons: AI, Print, Excel, Telegram */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Gemini AI Analysis Button */}
+          <button
+            type="button"
+            onClick={() => setIsAiModalOpen(true)}
+            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer active:scale-98"
+            title="វិភាគទិន្នន័យរបាយការណ៍ដោយប្រើ Google Gemini AI"
+          >
+            <Sparkles size={14} className="text-yellow-300 animate-pulse" />
+            <span>វិភាគទិន្នន័យ (Gemini AI)</span>
+          </button>
+
           {canExport && (
             <>
               <button
@@ -1411,6 +1425,21 @@ ${topStaffSummary || '—'}
           </div>
         </div>
       </div>
+
+      {/* Google Gemini AI Analysis Modal */}
+      <GeminiAnalysisModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        visits={filteredVisits}
+        calls={calls}
+        filterInfo={{
+          dateRangeLabel: dateRange.label,
+          branch: filterBranch,
+          staff: filterStaff,
+          crop: filterCrop,
+          province: filterProvince
+        }}
+      />
 
     </div>
   );
