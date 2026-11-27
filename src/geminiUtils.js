@@ -2,12 +2,13 @@
 import { getTelegramSettings } from './telegramUtils.js';
 
 export const GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (លឿន & ឆ្លាតវៃ - ណែនាំ)', isDefault: true },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (ស្តង់ដារលឿន)' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (ការវិភាគស៊ីជម្រៅ)' }
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (ជំនាន់ថ្មីចុងក្រោយ - លឿន & ឆ្លាតវៃ - ណែនាំ)', isDefault: true },
+  { id: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro (ការវិភាគស៊ីជម្រៅ)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
 ];
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 
 /**
  * Retrieve saved Gemini API key from localStorage or Vite environment variable
@@ -45,7 +46,13 @@ export function saveGeminiApiKey(key) {
  */
 export function getSelectedGeminiModel() {
   try {
-    return localStorage.getItem('sremeas_gemini_model') || DEFAULT_GEMINI_MODEL;
+    const saved = localStorage.getItem('sremeas_gemini_model');
+    // If the saved model is obsolete 'gemini-2.5-flash', automatically migrate to 'gemini-3.8-flash'
+    if (saved === 'gemini-2.5-flash') {
+      try { localStorage.setItem('sremeas_gemini_model', DEFAULT_GEMINI_MODEL); } catch {}
+      return DEFAULT_GEMINI_MODEL;
+    }
+    return saved || DEFAULT_GEMINI_MODEL;
   } catch {
     return DEFAULT_GEMINI_MODEL;
   }
@@ -65,36 +72,50 @@ export function saveSelectedGeminiModel(model) {
 /**
  * Test Gemini API connection with a minimal prompt
  */
-export async function testGeminiConnection(apiKey, model = DEFAULT_GEMINI_MODEL) {
+export async function testGeminiConnection(apiKey, model = null) {
   const key = (apiKey || getGeminiApiKey()).trim();
   if (!key) {
     throw new Error('សូមបញ្ចូល Google Gemini API Key ជាមុនសិន!');
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: 'សូមឆ្លើយតបខ្លីមួយម៉ាត់ថា "OK" ដើម្បីបញ្ជាក់ការតភ្ជាប់។' }]
+  const activeModel = model || getSelectedGeminiModel();
+
+  const callTest = async (modelToUse) => {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${key}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: 'សូមឆ្លើយតបខ្លីមួយម៉ាត់ថា "OK" ដើម្បីបញ្ជាក់ការតភ្ជាប់។' }]
+          }
+        ],
+        generationConfig: {
+          maxOutputTokens: 20
         }
-      ],
-      generationConfig: {
-        maxOutputTokens: 20
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
+      // Check if error suggests a newer model (e.g. "use models/gemini-3.8-flash")
+      const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
+      if (suggestedModelMatch && suggestedModelMatch[1] && suggestedModelMatch[1] !== modelToUse) {
+        const nextModel = suggestedModelMatch[1];
+        console.warn(`Model ${modelToUse} obsolete. Retrying test with suggested model ${nextModel}...`);
+        saveSelectedGeminiModel(nextModel);
+        return await callTest(nextModel);
       }
-    })
-  });
+      throw new Error(errMsg);
+    }
 
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
-    throw new Error(errMsg);
-  }
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return { ok: true, reply, modelUsed: modelToUse };
+  };
 
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return { ok: true, reply };
+  return await callTest(activeModel);
 }
 
 /**
@@ -208,45 +229,58 @@ export async function callGeminiAPI({
   }
 
   const activeModel = model || getSelectedGeminiModel();
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${key}`;
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [{ text: prompt }]
+  const executeCall = async (modelToUse) => {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${key}`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ],
+      generationConfig: {
+        temperature,
+        topK: 40,
+        topP: 0.95
       }
-    ],
-    generationConfig: {
-      temperature,
-      topK: 40,
-      topP: 0.95
+    };
+
+    if (systemInstruction) {
+      requestBody.systemInstruction = {
+        parts: [{ text: systemInstruction }]
+      };
     }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
+      // Check if error suggests a newer model (e.g. "use models/gemini-3.8-flash")
+      const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
+      if (suggestedModelMatch && suggestedModelMatch[1] && suggestedModelMatch[1] !== modelToUse) {
+        const nextModel = suggestedModelMatch[1];
+        console.warn(`Model ${modelToUse} obsolete. Automatically retrying with suggested model ${nextModel}...`);
+        saveSelectedGeminiModel(nextModel);
+        return await executeCall(nextModel);
+      }
+      throw new Error(`Gemini Error: ${errMsg}`);
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) {
+      throw new Error('Gemini មិនបានបញ្ជូនចម្លើយមកវិញទេ សូមព្យាយាមម្តងទៀត!');
+    }
+
+    return text;
   };
 
-  if (systemInstruction) {
-    requestBody.systemInstruction = {
-      parts: [{ text: systemInstruction }]
-    };
-  }
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  });
-
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
-    throw new Error(`Gemini Error: ${errMsg}`);
-  }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!text) {
-    throw new Error('Gemini មិនបានបញ្ជូនចម្លើយមកវិញទេ សូមព្យាយាមម្តងទៀត!');
-  }
-
-  return text;
+  return await executeCall(activeModel);
 }
 
 /**

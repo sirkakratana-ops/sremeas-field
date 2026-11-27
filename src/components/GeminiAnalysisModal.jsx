@@ -165,12 +165,14 @@ export default function GeminiAnalysisModal({
     try {
       setIsTestingKey(true);
       setKeyStatus(null);
-      await testGeminiConnection(apiKey.trim(), selectedModel);
+      const testResult = await testGeminiConnection(apiKey.trim(), selectedModel);
       saveGeminiApiKey(apiKey.trim());
-      saveSelectedGeminiModel(selectedModel);
+      const effectiveModel = testResult?.modelUsed || selectedModel;
+      saveSelectedGeminiModel(effectiveModel);
+      setSelectedModel(effectiveModel);
       setKeyStatus({
         type: 'success',
-        text: 'តេស្តតភ្ជាប់ជោគជ័យ! API Key ដំណើរការយ៉ាងត្រឹមត្រូវ។'
+        text: `តេស្តតភ្ជាប់ជោគជ័យជាមួយម៉ូដែល ${effectiveModel}! API Key ដំណើរការយ៉ាងត្រឹមត្រូវ។`
       });
     } catch (err) {
       setKeyStatus({
