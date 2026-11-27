@@ -11,6 +11,7 @@ import {
   getSelectedGeminiModel, 
   saveSelectedGeminiModel, 
   GEMINI_MODELS, 
+  DEFAULT_GEMINI_MODEL,
   testGeminiConnection, 
   analyzeReportWithGemini,
   sendAiReportToTelegram

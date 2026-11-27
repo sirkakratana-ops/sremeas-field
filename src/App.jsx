@@ -11,6 +11,7 @@ import LoginScreen from './components/LoginScreen';
 import NewVisitModal from './components/NewVisitModal';
 import VisitDetailModal from './components/VisitDetailModal';
 import ReportsView from './components/ReportsView';
+import ErrorBoundary from './components/ErrorBoundary';
 import EditProfileModal from './components/EditProfileModal';
 import CallList from './components/CallList';
 import NewCallModal from './components/NewCallModal';
@@ -514,14 +515,16 @@ export default function App() {
             )}
 
             {activeTab === 'reports' && (
-              <ReportsView 
-                visits={visits}
-                customers={customers}
-                staffList={staffList}
-                calls={calls}
-                currentUser={currentUser}
-                onSelectVisit={(v) => setSelectedVisitDetail(v)}
-              />
+              <ErrorBoundary>
+                <ReportsView 
+                  visits={visits}
+                  customers={customers}
+                  staffList={staffList}
+                  calls={calls}
+                  currentUser={currentUser}
+                  onSelectVisit={(v) => setSelectedVisitDetail(v)}
+                />
+              </ErrorBoundary>
             )}
 
             {activeTab === 'calls' && (

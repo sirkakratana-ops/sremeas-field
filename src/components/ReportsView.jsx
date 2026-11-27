@@ -19,6 +19,13 @@ import {
 } from '../staffUtils';
 import { getTelegramSettings } from '../telegramUtils';
 
+// Helper functions for date formatting
+const padZero = (n) => String(n).padStart(2, '0');
+const formatYMD = (d) => {
+  if (!d) return '';
+  return `${d.getFullYear()}-${padZero(d.getMonth() + 1)}-${padZero(d.getDate())}`;
+};
+
 export default function ReportsView({ 
   visits = [], 
   customers = [], 
@@ -50,58 +57,53 @@ export default function ReportsView({
 
   const canExport = hasPermission(currentUser, 'can_export_reports', true);
 
-  // Helper: Format Date to YYYY-MM-DD in local time
-  const formatYMD = (d) => {
-    const pad = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
-
   // Compute Active Date Range
   const dateRange = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (datePreset === 'today') {
-      const s = formatYMD(today);
-      return { from: s, to: s, label: 'ថ្ងៃនេះ' };
+      if (datePreset === 'today') {
+        const s = formatYMD(today);
+        return { from: s, to: s, label: 'ថ្ងៃនេះ' };
+      }
+      if (datePreset === 'yesterday') {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        const s = formatYMD(y);
+        return { from: s, to: s, label: 'ម្សិលមិញ' };
+      }
+      if (datePreset === 'last7') {
+        const f = new Date(today);
+        f.setDate(f.getDate() - 6);
+        return { from: formatYMD(f), to: formatYMD(today), label: '៧ ថ្ងៃចុងក្រោយ' };
+      }
+      if (datePreset === 'thisMonth') {
+        const f = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { from: formatYMD(f), to: formatYMD(today), label: `ខែនេះ (${padZero(today.getMonth() + 1)}/${today.getFullYear()})` };
+      }
+      if (datePreset === 'lastMonth') {
+        const f = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const t = new Date(today.getFullYear(), today.getMonth(), 0);
+        return { from: formatYMD(f), to: formatYMD(t), label: `ខែមុន (${padZero(f.getMonth() + 1)}/${f.getFullYear()})` };
+      }
+      if (datePreset === 'thisYear') {
+        const f = new Date(today.getFullYear(), 0, 1);
+        return { from: formatYMD(f), to: formatYMD(today), label: `ឆ្នាំ ${today.getFullYear()}` };
+      }
+      if (datePreset === 'custom') {
+        return { 
+          from: customFrom || '', 
+          to: customTo || '', 
+          label: customFrom || customTo ? `${customFrom || '—'} ដល់ ${customTo || '—'}` : 'កំណត់កាលបរិច្ឆេទ' 
+        };
+      }
+      return { from: '', to: '', label: 'គ្រប់កាលបរិច្ឆេទ' };
+    } catch (err) {
+      console.warn('Error computing dateRange in ReportsView:', err);
+      return { from: '', to: '', label: 'គ្រប់កាលបរិច្ឆេទ' };
     }
-    if (datePreset === 'yesterday') {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      const s = formatYMD(y);
-      return { from: s, to: s, label: 'ម្សិលមិញ' };
-    }
-    if (datePreset === 'last7') {
-      const f = new Date(today);
-      f.setDate(f.getDate() - 6);
-      return { from: formatYMD(f), to: formatYMD(today), label: '៧ ថ្ងៃចុងក្រោយ' };
-    }
-    if (datePreset === 'thisMonth') {
-      const f = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { from: formatYMD(f), to: formatYMD(today), label: `ខែនេះ (${padZero(today.getMonth() + 1)}/${today.getFullYear()})` };
-    }
-    if (datePreset === 'lastMonth') {
-      const f = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const t = new Date(today.getFullYear(), today.getMonth(), 0);
-      return { from: formatYMD(f), to: formatYMD(t), label: `ខែមុន (${padZero(f.getMonth() + 1)}/${f.getFullYear()})` };
-    }
-    if (datePreset === 'thisYear') {
-      const f = new Date(today.getFullYear(), 0, 1);
-      return { from: formatYMD(f), to: formatYMD(today), label: `ឆ្នាំ ${today.getFullYear()}` };
-    }
-    if (datePreset === 'custom') {
-      return { 
-        from: customFrom || '', 
-        to: customTo || '', 
-        label: customFrom || customTo ? `${customFrom || '—'} ដល់ ${customTo || '—'}` : 'កំណត់កាលបរិច្ឆេទ' 
-      };
-    }
-    return { from: '', to: '', label: 'គ្រប់កាលបរិច្ឆេទ' };
   }, [datePreset, customFrom, customTo]);
-
-  function padZero(n) {
-    return String(n).padStart(2, '0');
-  }
 
   // Filter options lists
   const availableBranches = useMemo(() => {
@@ -1427,19 +1429,21 @@ ${topStaffSummary || '—'}
       </div>
 
       {/* Google Gemini AI Analysis Modal */}
-      <GeminiAnalysisModal
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        visits={filteredVisits}
-        calls={calls}
-        filterInfo={{
-          dateRangeLabel: dateRange.label,
-          branch: filterBranch,
-          staff: filterStaff,
-          crop: filterCrop,
-          province: filterProvince
-        }}
-      />
+      {isAiModalOpen && (
+        <GeminiAnalysisModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          visits={filteredVisits}
+          calls={calls}
+          filterInfo={{
+            dateRangeLabel: dateRange?.label || '',
+            branch: filterBranch,
+            staff: filterStaff,
+            crop: filterCrop,
+            province: filterProvince
+          }}
+        />
+      )}
 
     </div>
   );
