@@ -1077,7 +1077,7 @@ export default function AdminDashboard({ currentUser, onStaffListChanged, visits
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    រូបថត Profile នេះនឹងបង្ហាញក្នុងបញ្ជីបុគ្គលិក និងភ្ជាប់ទៅក្នុងរបាយការណ៍ Telegram ពេលចុះចំការ។ គាំទ្រ JPG, PNG និង HEIC។
+                    រូបថត Profile នេះនឹងបង្ហាញក្នុងបញ្ជីបុគ្គលិក និងនៅលើ Header ប្រព័ន្ធ។ គាំទ្រ JPG, PNG និង HEIC។
                   </p>
                   {photoPreview && (
                     <div className="flex items-center justify-center sm:justify-start gap-3 pt-1">

@@ -297,7 +297,7 @@ export default function EditProfileModal({
               )}
             </div>
             <p className="text-[10px] text-slate-400 text-center">
-              រូបភាពនឹងត្រូវកាត់តម្រឹមជារាងការ៉េស្មើ (Square) ដោយស្វ័យប្រវត្តិ និងបង្ហាញនៅចុងក្រោយនៃរបាយការណ៍ Telegram
+              រូបភាពនឹងត្រូវកាត់តម្រឹមជារាងការ៉េស្មើ (Square) ដោយស្វ័យប្រវត្តិ និងបង្ហាញលើ Profile របស់អ្នក
             </p>
           </div>
 

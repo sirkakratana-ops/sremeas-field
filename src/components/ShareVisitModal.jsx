@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Send, Copy, Check, Settings, Bot, ExternalLink, 
   ChevronDown, ChevronUp, AlertCircle, CheckCircle2, 
-  Loader2, Share2, FileText, Image as ImageIcon, Info, HelpCircle,
-  User
+  Loader2, Share2, FileText, Image as ImageIcon, Info, HelpCircle
 } from 'lucide-react';
 import { 
   formatVisitTelegramText, 
@@ -39,7 +38,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose, staffList = []
 
       let isMounted = true;
       setIsLoadingPhotos(true);
-      resolveReportPhotosForTelegram(visit, staffList).then(res => {
+      resolveReportPhotosForTelegram(visit).then(res => {
         if (isMounted) {
           setReportPhotos(res);
           setIsLoadingPhotos(false);
@@ -51,7 +50,7 @@ export default function ShareVisitModal({ visit, isOpen, onClose, staffList = []
 
       return () => { isMounted = false; };
     }
-  }, [isOpen, visit, staffList]);
+  }, [isOpen, visit]);
 
   if (!isOpen || !visit) return null;
 
@@ -93,11 +92,11 @@ export default function ShareVisitModal({ visit, isOpen, onClose, staffList = []
     try {
       setIsSendingBot(true);
       setBotStatusMessage(null);
-      await sendVisitViaTelegramBot(visit, botSettings, staffList);
+      await sendVisitViaTelegramBot(visit, botSettings);
       const totalCount = allPhotos.length;
       setBotStatusMessage({
         type: 'success',
-        text: `បានផ្ញើរបាយការណ៍ ${totalCount > 0 ? `រួមទាំងរូបភាព (${totalCount} សន្លឹក រួមមានរូបចុះចំការ និងរូប Profile បុគ្គលិក) ` : ''}ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
+        text: `បានផ្ញើរបាយការណ៍ ${totalCount > 0 ? `រួមទាំងរូបភាព (${totalCount} សន្លឹក) ` : ''}ចូល Telegram Group «${botSettings.groupName || botSettings.chatId}» ដោយជោគជ័យ!`
       });
     } catch (err) {
       setBotStatusMessage({
@@ -192,32 +191,18 @@ export default function ShareVisitModal({ visit, isOpen, onClose, staffList = []
                   <ImageIcon size={14} className="text-emerald-600" />
                   <span>រូបភាពត្រូវភ្ជាប់ទៅ Telegram ({allPhotos.length} សន្លឹក)</span>
                 </span>
-                {isLoadingPhotos ? (
+                {isLoadingPhotos && (
                   <span className="text-[10px] text-slate-500 flex items-center gap-1">
                     <Loader2 size={11} className="animate-spin text-emerald-600" /> កំពុងរៀបចំរូបភាព...
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                    Profile បុគ្គលិកនៅលំដាប់ចុងក្រោយ
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {/* 1. Field photos */}
+                {/* Field photos */}
                 {reportPhotos.fieldPhotos.map((p, idx) => (
                   <a key={`field-${idx}`} href={p} target="_blank" rel="noreferrer" className="w-16 h-12 rounded-lg border border-emerald-200 overflow-hidden shrink-0 group relative" title={`រូបចុះចំការ #${idx+1}`}>
                     <img src={p} alt={`Field Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white text-center py-0.2">ចំការ {idx+1}</span>
-                  </a>
-                ))}
-
-                {/* 2. Staff Profile photos (Strictly at the end!) */}
-                {reportPhotos.staffPhotos.map((p, idx) => (
-                  <a key={`staff-${idx}`} href={p} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-lg border-2 border-emerald-500 overflow-hidden shrink-0 group relative aspect-square shadow-2xs" title={`រូប Profile បុគ្គលិក #${idx+1}`}>
-                    <img src={p} alt={`Staff Profile ${idx+1}`} className="w-full h-full object-cover aspect-square group-hover:scale-105 transition-transform" />
-                    <span className="absolute bottom-0 inset-x-0 bg-emerald-700/80 text-[8px] font-bold text-white text-center py-0.2 flex items-center justify-center gap-0.5">
-                      <User size={8} /> Profile
-                    </span>
                   </a>
                 ))}
               </div>

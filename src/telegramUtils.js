@@ -4,9 +4,7 @@ import {
   formatProvince, 
   formatPhoneNumber, 
   extractVisitPurpose, 
-  extractFarmerHistory,
-  getVisitStaffPhotos,
-  getStaffList
+  extractFarmerHistory
 } from './staffUtils.js';
 import { isHeicFile, convertHeicToJpeg } from './imageUtils.js';
 import { supabase } from './supabase.js';
@@ -233,15 +231,12 @@ export async function convertHeicUrlToJpegUrl(url) {
 }
 
 /**
- * Resolve all photos for Telegram report:
- * 1. Field visit photos (photos of the farm / crop)
- * 2. Profile photos of reporter and all participants/team members
- * 
- * Strict order requirement:
- * Place staff profile photos strictly at the VERY END ([...fieldPhotos, ...staffPhotos]).
+ * Resolve photos for Telegram report:
+ * Field visit photos only (photos of the farm / crop).
  * Automatically converts any HEIC photos to standard JPEG.
+ * (Staff profile photos are excluded from Telegram reports per user preference)
  */
-export async function resolveReportPhotosForTelegram(visit, customStaffList = null) {
+export async function resolveReportPhotosForTelegram(visit) {
   if (!visit) {
     return { fieldPhotos: [], staffPhotos: [], allPhotos: [] };
   }
@@ -251,20 +246,7 @@ export async function resolveReportPhotosForTelegram(visit, customStaffList = nu
     ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) 
     : [];
 
-  // 2. Fetch staffList if not passed
-  let staffList = customStaffList;
-  if (!Array.isArray(staffList) || staffList.length === 0) {
-    try {
-      staffList = await getStaffList(supabase);
-    } catch {
-      staffList = [];
-    }
-  }
-
-  // 3. Extract reporter and participant profile photos
-  const rawStaffPhotos = getVisitStaffPhotos(visit, staffList);
-
-  // 4. Ensure HEIC conversion if any photo ends in .heic/.heif
+  // 2. Ensure HEIC conversion if any photo ends in .heic/.heif
   const fieldPhotos = [];
   for (const url of rawFieldPhotos) {
     if (isHeicFile(url)) {
@@ -275,32 +257,19 @@ export async function resolveReportPhotosForTelegram(visit, customStaffList = nu
     }
   }
 
-  const staffPhotos = [];
-  for (const url of rawStaffPhotos) {
-    if (isHeicFile(url)) {
-      const converted = await convertHeicUrlToJpegUrl(url);
-      staffPhotos.push(converted);
-    } else {
-      staffPhotos.push(url);
-    }
-  }
-
-  // Ordered strictly: field photos FIRST, staff profile photos at the VERY END!
-  const allPhotos = [...fieldPhotos, ...staffPhotos];
-
   return {
     fieldPhotos,
-    staffPhotos,
-    allPhotos
+    staffPhotos: [],
+    allPhotos: fieldPhotos
   };
 }
 
 /**
  * Send report directly to a Telegram Group via Bot API,
  * natively displaying actual photos (single photo or photo album) inside the group!
- * Automatically includes staff profile photos at the very end and handles HEIC images.
+ * Attaches field photos and automatically handles HEIC images.
  */
-export async function sendVisitViaTelegramBot(visit, customSettings = null, customStaffList = null) {
+export async function sendVisitViaTelegramBot(visit, customSettings = null) {
   const settings = customSettings || getTelegramSettings();
   const botToken = settings?.botToken?.trim();
   const chatId = settings?.chatId?.trim();
@@ -311,8 +280,8 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null, cust
 
   const fullText = formatVisitTelegramText(visit);
   
-  // Resolve photos: field photos first, staff profile photos at the end
-  const { allPhotos } = await resolveReportPhotosForTelegram(visit, customStaffList);
+  // Resolve field visit photos only
+  const { allPhotos } = await resolveReportPhotosForTelegram(visit);
 
   // ==========================================================
   // CASE 1: Has exactly 1 Photo -> Send via `sendPhoto`
@@ -355,7 +324,7 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null, cust
 
   // ==========================================================
   // CASE 2: Has Multiple Photos (>= 2) -> Send in albums of up to 10 via `sendMediaGroup`
-  // Slices into batches so all photos (including staff profiles at the end) are sent!
+  // Slices into batches so all field photos are sent!
   // ==========================================================
   if (allPhotos.length > 1) {
     try {
