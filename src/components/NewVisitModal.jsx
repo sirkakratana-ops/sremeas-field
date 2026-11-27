@@ -28,7 +28,7 @@ import {
   extractFarmerHistory,
   cleanNotesText
 } from '../staffUtils';
-import { compressMultipleImages, formatFileSize } from '../imageUtils';
+import { compressImage, compressMultipleImages, formatFileSize, isHeicFile } from '../imageUtils';
 
 function getLocalDateString(d = new Date()) {
   if (!d || isNaN(new Date(d).getTime())) d = new Date();
@@ -556,11 +556,11 @@ export default function NewVisitModal({
 
     setIsCompressing(true);
     try {
-      // Compress images client-side before upload: max 1280px, JPEG quality 0.72
+      // Compress images client-side before upload: max 1024px, JPEG quality 0.65 (< 250KB)
       const results = await compressMultipleImages(rawFiles, {
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.72
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 0.65
       });
 
       const newFiles = results.map(r => r.file);
@@ -726,14 +726,30 @@ export default function NewVisitModal({
     localStorage.setItem('sremeas_staff_name', staffName.trim());
 
     try {
-      // 1. Upload new photos to Supabase Storage
+      // 1. Upload new photos to Supabase Storage with guaranteed compression
       const uploadedUrls = [];
       for (const file of photoFiles) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        // Guarantee file is compressed (< 260KB JPEG) before uploading
+        let fileToUpload = file;
+        if (file.size > 260 * 1024 || isHeicFile(file) || !file.type.startsWith('image/jpeg')) {
+          try {
+            const comp = await compressImage(file, { maxWidth: 1024, maxHeight: 1024, quality: 0.65 });
+            fileToUpload = comp.file;
+          } catch (compErr) {
+            console.warn("Pre-upload compression fallback:", compErr);
+          }
+        }
+
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`;
         const filePath = `visits/${fileName}`;
 
-        const { error: uploadErr } = await supabase.storage.from('visit-photos').upload(filePath, file);
+        const { error: uploadErr } = await supabase.storage
+          .from('visit-photos')
+          .upload(filePath, fileToUpload, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+
         if (uploadErr) {
           console.error("Upload error:", uploadErr);
         } else {

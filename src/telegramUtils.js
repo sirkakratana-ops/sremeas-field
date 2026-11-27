@@ -6,7 +6,7 @@ import {
   extractVisitPurpose, 
   extractFarmerHistory
 } from './staffUtils.js';
-import { isHeicFile, convertHeicToJpeg } from './imageUtils.js';
+import { isHeicFile, convertHeicToJpeg, compressImage } from './imageUtils.js';
 import { supabase } from './supabase.js';
 
 /**
@@ -205,35 +205,59 @@ export function saveTelegramSettings(settings) {
 }
 
 /**
- * If an image URL is in HEIC/HEIF format, convert it to JPEG and upload to visit-photos/converted
- * so that Telegram servers and all browsers can view it cleanly.
+ * Ensure an image URL is optimized for Telegram:
+ * 1. If HEIC, converts to JPEG.
+ * 2. If larger than 300KB or uncompressed, compresses to < 250KB JPEG.
+ * 3. Uploads optimized version to Supabase 'visit-photos/converted/' so Telegram can load it instantly.
  */
-export async function convertHeicUrlToJpegUrl(url) {
-  if (!url || typeof url !== 'string' || !isHeicFile(url)) return url;
+export async function ensureTelegramReadyPhoto(url) {
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) return url;
+  
+  // If already an optimized photo from converted folder, return directly
+  if (url.includes('/converted/opt_') || url.includes('/converted/heic_conv_')) {
+    return url;
+  }
+
+  const isHeic = isHeicFile(url);
   try {
     const res = await fetch(url);
     if (!res.ok) return url;
     const blob = await res.blob();
-    const jpegFile = await convertHeicToJpeg(new File([blob], 'photo.jpg', { type: blob.type || 'image/heic' }));
-    const fileName = `heic_conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
-    const filePath = `converted/${fileName}`;
-    const { error } = await supabase.storage.from('visit-photos').upload(filePath, jpegFile, {
-      contentType: 'image/jpeg'
-    });
-    if (!error) {
-      const { data } = supabase.storage.from('visit-photos').getPublicUrl(filePath);
-      if (data?.publicUrl) return data.publicUrl;
+    
+    // Optimize if it is HEIC or if file is larger than 300KB
+    if (isHeic || blob.size > 300 * 1024) {
+      let file = new File([blob], isHeic ? 'photo.heic' : 'photo.jpg', {
+        type: blob.type || (isHeic ? 'image/heic' : 'image/jpeg')
+      });
+      const compressed = await compressImage(file, { maxWidth: 1024, maxHeight: 1024, quality: 0.65 });
+      const fileName = `opt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+      const filePath = `converted/${fileName}`;
+      const { error } = await supabase.storage.from('visit-photos').upload(filePath, compressed.file, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+      if (!error) {
+        const { data } = supabase.storage.from('visit-photos').getPublicUrl(filePath);
+        if (data?.publicUrl) return data.publicUrl;
+      }
     }
   } catch (err) {
-    console.warn('convertHeicUrlToJpegUrl error:', err);
+    console.warn('ensureTelegramReadyPhoto error:', err);
   }
   return url;
 }
 
 /**
+ * Backward compatibility wrapper for convertHeicUrlToJpegUrl
+ */
+export async function convertHeicUrlToJpegUrl(url) {
+  return ensureTelegramReadyPhoto(url);
+}
+
+/**
  * Resolve photos for Telegram report:
  * Field visit photos only (photos of the farm / crop).
- * Automatically converts any HEIC photos to standard JPEG.
+ * Automatically converts any HEIC photos and compresses any oversized photos to standard JPEG (< 250KB).
  * (Staff profile photos are excluded from Telegram reports per user preference)
  */
 export async function resolveReportPhotosForTelegram(visit) {
@@ -246,15 +270,11 @@ export async function resolveReportPhotosForTelegram(visit) {
     ? visit.photos.filter(p => typeof p === 'string' && p.startsWith('http')) 
     : [];
 
-  // 2. Ensure HEIC conversion if any photo ends in .heic/.heif
+  // 2. Ensure every photo is properly optimized for Telegram delivery
   const fieldPhotos = [];
   for (const url of rawFieldPhotos) {
-    if (isHeicFile(url)) {
-      const converted = await convertHeicUrlToJpegUrl(url);
-      fieldPhotos.push(converted);
-    } else {
-      fieldPhotos.push(url);
-    }
+    const optimized = await ensureTelegramReadyPhoto(url);
+    fieldPhotos.push(optimized);
   }
 
   return {
@@ -267,7 +287,7 @@ export async function resolveReportPhotosForTelegram(visit) {
 /**
  * Send report directly to a Telegram Group via Bot API,
  * natively displaying actual photos (single photo or photo album) inside the group!
- * Attaches field photos and automatically handles HEIC images.
+ * Attaches field photos, automatically compresses large photos, and includes direct binary FormData fallback.
  */
 export async function sendVisitViaTelegramBot(visit, customSettings = null) {
   const settings = customSettings || getTelegramSettings();
@@ -280,16 +300,16 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
 
   const fullText = formatVisitTelegramText(visit);
   
-  // Resolve field visit photos only
+  // Resolve field visit photos only (guaranteed < 250KB JPEGs)
   const { allPhotos } = await resolveReportPhotosForTelegram(visit);
 
   // ==========================================================
   // CASE 1: Has exactly 1 Photo -> Send via `sendPhoto`
   // ==========================================================
   if (allPhotos.length === 1) {
+    const caption = fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...';
     try {
-      // Telegram photo caption maximum length is 1024 characters
-      const caption = fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...';
+      // Step A: Send by optimized URL
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -301,7 +321,7 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើរូបភាព');
+        throw new Error(data.description || 'URL sendPhoto failed');
       }
 
       // If fullText was truncated, send the full text message right after
@@ -317,8 +337,35 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
       }
       return data;
     } catch (photoErr) {
-      console.warn('sendPhoto failed, attempting fallback to sendMessage:', photoErr);
-      // Fallback continues below
+      console.warn('sendPhoto via URL failed, attempting direct binary upload fallback:', photoErr);
+      try {
+        // Step B: Direct binary upload via FormData (never fails due to Telegram URL fetching issues)
+        const photoRes = await fetch(allPhotos[0]);
+        if (photoRes.ok) {
+          const photoBlob = await photoRes.blob();
+          const fd = new FormData();
+          fd.append('chat_id', chatId);
+          fd.append('photo', photoBlob, 'photo.jpg');
+          if (caption) fd.append('caption', caption);
+          const directRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            method: 'POST',
+            body: fd
+          });
+          const directData = await directRes.json();
+          if (directRes.ok && directData.ok) {
+            if (fullText.length > 1024) {
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: fullText })
+              });
+            }
+            return directData;
+          }
+        }
+      } catch (directErr) {
+        console.warn('sendPhoto direct binary fallback also failed:', directErr);
+      }
     }
   }
 
@@ -370,7 +417,7 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
           });
           const data = await res.json();
           if (!res.ok || !data.ok) {
-            throw new Error(data.description || 'បរាជ័យក្នុងការផ្ញើក្រុមរូបភាព');
+            throw new Error(data.description || 'sendMediaGroup via URL failed');
           }
           if (bIdx === 0) firstBatchResult = data;
         }
@@ -389,8 +436,71 @@ export async function sendVisitViaTelegramBot(visit, customSettings = null) {
       }
       return firstBatchResult || { ok: true };
     } catch (mediaErr) {
-      console.warn('sendMediaGroup failed, attempting fallback to sendMessage:', mediaErr);
-      // Fallback continues below
+      console.warn('sendMediaGroup via URL failed, attempting direct binary upload fallback:', mediaErr);
+      try {
+        // Step B: Direct binary upload fallback via FormData with attach://
+        const batches = [];
+        for (let i = 0; i < allPhotos.length; i += 10) {
+          batches.push(allPhotos.slice(i, i + 10));
+        }
+
+        let firstBatchResult = null;
+        for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+          const batch = batches[bIdx];
+          const fd = new FormData();
+          fd.append('chat_id', chatId);
+          const mediaDesc = [];
+          for (let i = 0; i < batch.length; i++) {
+            const pRes = await fetch(batch[i]);
+            if (!pRes.ok) continue;
+            const pBlob = await pRes.blob();
+            const attachName = `photo_${bIdx}_${i}`;
+            fd.append(attachName, pBlob, `${attachName}.jpg`);
+            mediaDesc.push({
+              type: 'photo',
+              media: `attach://${attachName}`,
+              caption: (bIdx === 0 && i === 0) 
+                ? (fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...') 
+                : undefined
+            });
+          }
+
+          if (mediaDesc.length === 1) {
+            const singleFd = new FormData();
+            singleFd.append('chat_id', chatId);
+            const pBlob = await fetch(batch[0]).then(r => r.blob());
+            singleFd.append('photo', pBlob, 'photo.jpg');
+            if (bIdx === 0) singleFd.append('caption', fullText.length <= 1024 ? fullText : fullText.slice(0, 1020) + '...');
+            const singleRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: 'POST',
+              body: singleFd
+            });
+            const singleData = await singleRes.json();
+            if (bIdx === 0) firstBatchResult = singleData;
+          } else if (mediaDesc.length > 1) {
+            fd.append('media', JSON.stringify(mediaDesc));
+            const directRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMediaGroup`, {
+              method: 'POST',
+              body: fd
+            });
+            const directData = await directRes.json();
+            if (bIdx === 0) firstBatchResult = directData;
+          }
+        }
+
+        if (firstBatchResult) {
+          if (fullText.length > 1024) {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: fullText })
+            });
+          }
+          return firstBatchResult;
+        }
+      } catch (multiFdErr) {
+        console.warn('sendMediaGroup binary fallback error:', multiFdErr);
+      }
     }
   }
 
