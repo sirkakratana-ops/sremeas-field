@@ -2,13 +2,44 @@
 import { getTelegramSettings } from './telegramUtils.js';
 
 export const GEMINI_MODELS = [
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (ជំនាន់ថ្មីចុងក្រោយ - លឿន & ឆ្លាតវៃ - ណែនាំ)', isDefault: true },
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (ជំនាន់ចុងក្រោយ - លឿន & ឆ្លាតវៃ)', isDefault: true },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (លឿនរហ័ស & ស្ថិរភាពខ្ពស់)' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (ស្តង់ដារល្បឿន)' },
   { id: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro (ការវិភាគស៊ីជម្រៅ)' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (ការវិភាគកម្រិតខ្ពស់)' }
 ];
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+
+// Fallback order when a model has high demand or is temporarily overloaded
+export const FALLBACK_CHAIN = [
+  'gemini-3.8-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-3.8-pro',
+  'gemini-1.5-pro'
+];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Check whether an error is due to high demand, server overload, or temporary rate spike
+ */
+export function isHighDemandOrTemporaryError(errMsg, status) {
+  if (status === 503 || status === 429) return true;
+  const s = String(errMsg || '').toLowerCase();
+  return (
+    s.includes('high demand') ||
+    s.includes('spikes in demand') ||
+    s.includes('overloaded') ||
+    s.includes('resource exhausted') ||
+    s.includes('try again later') ||
+    s.includes('temporarily unavailable') ||
+    s.includes('capacity') ||
+    s.includes('503') ||
+    s.includes('429')
+  );
+}
 
 /**
  * Retrieve saved Gemini API key from localStorage or Vite environment variable
@@ -70,7 +101,7 @@ export function saveSelectedGeminiModel(model) {
 }
 
 /**
- * Test Gemini API connection with a minimal prompt
+ * Test Gemini API connection with a minimal prompt (with auto-retry and multi-model fallback)
  */
 export async function testGeminiConnection(apiKey, model = null) {
   const key = (apiKey || getGeminiApiKey()).trim();
@@ -78,44 +109,89 @@ export async function testGeminiConnection(apiKey, model = null) {
     throw new Error('សូមបញ្ចូល Google Gemini API Key ជាមុនសិន!');
   }
 
-  const activeModel = model || getSelectedGeminiModel();
+  const initialModel = model || getSelectedGeminiModel();
+  const queue = [initialModel, ...FALLBACK_CHAIN.filter(m => m !== initialModel)];
+  const triedModels = new Set();
+  let lastErrorMsg = '';
 
-  const callTest = async (modelToUse) => {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${key}`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: 'សូមឆ្លើយតបខ្លីមួយម៉ាត់ថា "OK" ដើម្បីបញ្ជាក់ការតភ្ជាប់។' }]
+  for (let i = 0; i < queue.length; i++) {
+    const currentModel = queue[i];
+    if (triedModels.has(currentModel)) continue;
+    triedModels.add(currentModel);
+
+    // Try up to 2 attempts per model (attempt 2 waits 1s)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${key}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: 'សូមឆ្លើយតបខ្លីមួយម៉ាត់ថា "OK" ដើម្បីបញ្ជាក់ការតភ្ជាប់។' }]
+              }
+            ],
+            generationConfig: {
+              maxOutputTokens: 20
+            }
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
+          lastErrorMsg = errMsg;
+
+          // If suggested a specific newer model
+          const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
+          if (suggestedModelMatch && suggestedModelMatch[1] && !triedModels.has(suggestedModelMatch[1])) {
+            queue.splice(i + 1, 0, suggestedModelMatch[1]);
           }
-        ],
-        generationConfig: {
-          maxOutputTokens: 20
+
+          // If high demand or temporary server spike
+          if (isHighDemandOrTemporaryError(errMsg, response.status)) {
+            if (attempt === 1) {
+              await sleep(1000);
+              continue;
+            } else {
+              break; // move to next model in queue
+            }
+          }
+
+          // If API key is invalid, fail immediately
+          if (response.status === 400 && (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid') || errMsg.includes('expired'))) {
+            throw new Error(`API Key មិនត្រឹមត្រូវ៖ ${errMsg}`);
+          }
+
+          break; // try next model
         }
-      })
-    });
 
-    const data = await response.json();
-    if (!response.ok || data.error) {
-      const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
-      // Check if error suggests a newer model (e.g. "use models/gemini-3.8-flash")
-      const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
-      if (suggestedModelMatch && suggestedModelMatch[1] && suggestedModelMatch[1] !== modelToUse) {
-        const nextModel = suggestedModelMatch[1];
-        console.warn(`Model ${modelToUse} obsolete. Retrying test with suggested model ${nextModel}...`);
-        saveSelectedGeminiModel(nextModel);
-        return await callTest(nextModel);
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (currentModel !== initialModel) {
+          saveSelectedGeminiModel(currentModel);
+        }
+
+        return {
+          ok: true,
+          reply,
+          modelUsed: currentModel,
+          fallbackOccurred: currentModel !== initialModel,
+          initialModel
+        };
+      } catch (err) {
+        lastErrorMsg = err.message;
+        if (err.message.includes('API Key មិនត្រឹមត្រូវ')) throw err;
+        break; // try next model
       }
-      throw new Error(errMsg);
     }
+  }
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return { ok: true, reply, modelUsed: modelToUse };
-  };
+  if (isHighDemandOrTemporaryError(lastErrorMsg, 503)) {
+    throw new Error(`ម៉ាស៊ីនបម្រើ Google Gemini កំពុងជួបប្រទះការកើនឡើងចរាចរណ៍ប្រើប្រាស់ខ្ពស់បណ្តោះអាសន្ន (High Demand Spike)។ សូមរង់ចាំប្រហែល ៣០ វិនាទី ទៅ ១ នាទី រួចសាកល្បងចុចតេស្តម្តងទៀត ឬជ្រើសរើសម៉ូដែលផ្សេងក្នុងប្រអប់បញ្ជី។`);
+  }
 
-  return await callTest(activeModel);
+  throw new Error(lastErrorMsg || 'មិនអាចតភ្ជាប់ទៅកាន់ Google Gemini API បានទេ សូមពិនិត្យ API Key និងការភ្ជាប់អ៊ីនធឺណិត។');
 }
 
 /**
@@ -214,7 +290,7 @@ export function prepareReportDataForGemini({ visits = [], calls = [], filterInfo
 }
 
 /**
- * Execute content generation using Google Gemini API
+ * Execute content generation using Google Gemini API (with auto-retry and multi-model fallback)
  */
 export async function callGeminiAPI({
   prompt,
@@ -228,59 +304,96 @@ export async function callGeminiAPI({
     throw new Error('សូមបញ្ចូល Google Gemini API Key ជាមុនសិននៅក្នុងផ្ទាំងកំណត់!');
   }
 
-  const activeModel = model || getSelectedGeminiModel();
+  const initialModel = model || getSelectedGeminiModel();
+  const queue = [initialModel, ...FALLBACK_CHAIN.filter(m => m !== initialModel)];
+  const triedModels = new Set();
+  let lastErrorMsg = '';
 
-  const executeCall = async (modelToUse) => {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${key}`;
+  for (let i = 0; i < queue.length; i++) {
+    const currentModel = queue[i];
+    if (triedModels.has(currentModel)) continue;
+    triedModels.add(currentModel);
 
-    const requestBody = {
-      contents: [
-        {
-          parts: [{ text: prompt }]
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${key}`;
+
+        const requestBody = {
+          contents: [
+            {
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            temperature,
+            topK: 40,
+            topP: 0.95
+          }
+        };
+
+        if (systemInstruction) {
+          requestBody.systemInstruction = {
+            parts: [{ text: systemInstruction }]
+          };
         }
-      ],
-      generationConfig: {
-        temperature,
-        topK: 40,
-        topP: 0.95
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
+          lastErrorMsg = errMsg;
+
+          // If suggested a newer model
+          const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
+          if (suggestedModelMatch && suggestedModelMatch[1] && !triedModels.has(suggestedModelMatch[1])) {
+            queue.splice(i + 1, 0, suggestedModelMatch[1]);
+          }
+
+          // If high demand or overloaded
+          if (isHighDemandOrTemporaryError(errMsg, response.status)) {
+            if (attempt === 1) {
+              await sleep(1200);
+              continue;
+            } else {
+              break; // try next fallback model
+            }
+          }
+
+          if (response.status === 400 && (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid'))) {
+            throw new Error(`API Key មិនត្រឹមត្រូវ៖ ${errMsg}`);
+          }
+
+          break; // try next model
+        }
+
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) {
+          throw new Error('Gemini មិនបានបញ្ជូនចម្លើយមកវិញទេ!');
+        }
+
+        if (currentModel !== initialModel) {
+          saveSelectedGeminiModel(currentModel);
+        }
+
+        return text;
+      } catch (err) {
+        lastErrorMsg = err.message;
+        if (err.message.includes('API Key មិនត្រឹមត្រូវ')) throw err;
+        break; // try next model
       }
-    };
-
-    if (systemInstruction) {
-      requestBody.systemInstruction = {
-        parts: [{ text: systemInstruction }]
-      };
     }
+  }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
-    });
+  if (isHighDemandOrTemporaryError(lastErrorMsg, 503)) {
+    throw new Error(`ម៉ាស៊ីនបម្រើ Google Gemini កំពុងជួបប្រទះការកើនឡើងចរាចរណ៍ប្រើប្រាស់ខ្ពស់បណ្តោះអាសន្ន (High Demand Spike)។ សូមរង់ចាំបន្តិច (ប្រហែល ៣០ វិនាទី ទៅ ១ នាទី) រួចចុចវិភាគម្តងទៀត ឬជ្រើសរើសម៉ូដែលផ្សេងក្នុងប្រអប់កំណត់។`);
+  }
 
-    const data = await response.json();
-    if (!response.ok || data.error) {
-      const errMsg = data.error?.message || `HTTP ${response.status} ${response.statusText}`;
-      // Check if error suggests a newer model (e.g. "use models/gemini-3.8-flash")
-      const suggestedModelMatch = errMsg.match(/use models\/(gemini-[\w.-]+)/i);
-      if (suggestedModelMatch && suggestedModelMatch[1] && suggestedModelMatch[1] !== modelToUse) {
-        const nextModel = suggestedModelMatch[1];
-        console.warn(`Model ${modelToUse} obsolete. Automatically retrying with suggested model ${nextModel}...`);
-        saveSelectedGeminiModel(nextModel);
-        return await executeCall(nextModel);
-      }
-      throw new Error(`Gemini Error: ${errMsg}`);
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!text) {
-      throw new Error('Gemini មិនបានបញ្ជូនចម្លើយមកវិញទេ សូមព្យាយាមម្តងទៀត!');
-    }
-
-    return text;
-  };
-
-  return await executeCall(activeModel);
+  throw new Error(`Gemini Error: ${lastErrorMsg}`);
 }
 
 /**

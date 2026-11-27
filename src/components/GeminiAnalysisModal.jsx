@@ -170,9 +170,15 @@ export default function GeminiAnalysisModal({
       const effectiveModel = testResult?.modelUsed || selectedModel;
       saveSelectedGeminiModel(effectiveModel);
       setSelectedModel(effectiveModel);
+      
+      let successMsg = `តេស្តតភ្ជាប់ជោគជ័យជាមួយម៉ូដែល ${effectiveModel}! API Key ដំណើរការយ៉ាងត្រឹមត្រូវ។`;
+      if (testResult?.fallbackOccurred) {
+        successMsg = `តេស្តជោគជ័យជាមួយម៉ូដែល ${effectiveModel}! (ដោយសារ ${testResult.initialModel} កំពុងមានអ្នកប្រើច្រើន High Demand ប្រព័ន្ធបានប្តូរស្វ័យប្រវត្តិ)`;
+      }
+
       setKeyStatus({
         type: 'success',
-        text: `តេស្តតភ្ជាប់ជោគជ័យជាមួយម៉ូដែល ${effectiveModel}! API Key ដំណើរការយ៉ាងត្រឹមត្រូវ។`
+        text: successMsg
       });
     } catch (err) {
       setKeyStatus({
@@ -221,6 +227,10 @@ export default function GeminiAnalysisModal({
         model: selectedModel
       });
       setAnalysisResult(result);
+      const currentSaved = getSelectedGeminiModel();
+      if (currentSaved && currentSaved !== selectedModel) {
+        setSelectedModel(currentSaved);
+      }
     } catch (err) {
       console.error("Gemini analysis error:", err);
       setAnalysisError(err.message || 'បរាជ័យក្នុងការវិភាគទិន្នន័យដោយ Gemini');
